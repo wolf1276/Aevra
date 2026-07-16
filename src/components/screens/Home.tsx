@@ -5,9 +5,9 @@ import { useState } from "react";
 import { AccountSwitcher } from "@/components/AccountSwitcher";
 import { BottomNav } from "@/components/BottomNav";
 import { ActivityRow } from "@/components/screens/Activity";
-import { Box, Btn, Circ, Divider, DividerL, Hd, Lbl, Pill, shortAddr } from "@/components/ui";
+import { Avatar, Box, Btn, Divider, DividerL, Hd, Lbl, Pill, shortAddr } from "@/components/ui";
 import { fmtUsd } from "@/lib/format";
-import { NETWORKS, useWallet } from "@/store/wallet";
+import { NETWORKS, profileFor, useWallet } from "@/store/wallet";
 
 export function Home() {
   const s = useWallet();
@@ -15,6 +15,7 @@ export function Home() {
   const [netOpen, setNetOpen] = useState(false);
   const [addrCopied, setAddrCopied] = useState(false);
   const account = s.accounts[s.activeIndex];
+  const profile = account ? profileFor(s.profiles, account.address) : null;
 
   const copyAddress = () => {
     if (!account) return;
@@ -49,12 +50,16 @@ export function Home() {
           className="flex cursor-pointer items-center gap-2"
           onClick={() => setMenuOpen((v) => !v)}
         >
-          <Circ size={24} />
+          {profile && account && (
+            <Avatar seed={profile.avatarSeed} style={profile.avatarStyle} size={24} />
+          )}
           <div className="flex flex-col items-start">
-            <div className="text-[11px] font-bold">{account?.name ?? "Wallet"} ▾</div>
+            <div className="text-[11px] font-bold">
+              {(profile?.username || account?.name) ?? "Wallet"} ▾
+            </div>
             {account && (
               <div
-                className="cursor-pointer text-[9px] text-[#777] hover:text-[#111]"
+                className="cursor-pointer text-[9px] text-[#888] hover:text-[#111]"
                 onClick={(e) => {
                   e.stopPropagation();
                   copyAddress();

@@ -7,8 +7,9 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { Box, Btn, Divider, Hd, Header, Lbl, Ph } from "@/components/ui";
-import { useWallet, walletProvider } from "@/store/wallet";
+import { Avatar, Box, Btn, Divider, Hd, Header, Lbl, Ph } from "@/components/ui";
+import { AVATAR_STYLES, type AvatarStyle } from "@/lib/avatar";
+import { profileFor, useWallet, walletProvider } from "@/store/wallet";
 
 const passwordSchema = z
   .object({
@@ -20,7 +21,8 @@ const passwordSchema = z
     path: ["confirm"],
   });
 
-const inputCls = "w-full border border-[#111] p-3 text-[11px] outline-none placeholder:text-[#999]";
+const inputCls =
+  "w-full rounded-[12px] border border-[#e4e4e4] p-3 text-[12px] outline-none placeholder:text-[#aaa]";
 
 export function Welcome() {
   const navigate = useWallet((s) => s.navigate);
@@ -209,6 +211,79 @@ export function Unlock() {
         {busy ? "Unlocking…" : "Unlock"}
       </Btn>
     </form>
+  );
+}
+
+export function Personalize() {
+  const s = useWallet();
+  const account = s.accounts[s.activeIndex];
+  const profile = account ? profileFor(s.profiles, account.address) : null;
+  const [username, setUsernameLocal] = useState("");
+
+  if (!account || !profile) return null;
+
+  const done = () => {
+    const name = username.trim();
+    if (name) s.setUsername(account.address, name);
+    s.navigate({ name: "home" });
+  };
+
+  return (
+    <div className="flex flex-1 flex-col">
+      <Header title="Personalize" />
+      <div className="flex flex-1 flex-col items-center gap-4 overflow-y-auto p-4">
+        <Avatar seed={profile.avatarSeed} style={profile.avatarStyle} size={72} />
+        <button
+          type="button"
+          className="cursor-pointer text-[10px] text-[#888] underline"
+          onClick={() => s.regenerateAvatar(account.address)}
+        >
+          Regenerate avatar
+        </button>
+        <div className="w-full">
+          <Lbl className="mb-[6px]">Username</Lbl>
+          <input
+            autoFocus
+            className={inputCls}
+            placeholder={account.name}
+            value={username}
+            onChange={(e) => setUsernameLocal(e.target.value)}
+          />
+        </div>
+        <div className="w-full">
+          <Lbl className="mb-[6px]">Avatar Style</Lbl>
+          <div className="grid grid-cols-4 gap-2">
+            {(Object.keys(AVATAR_STYLES) as AvatarStyle[]).map((style) => (
+              <button
+                key={style}
+                type="button"
+                className="flex cursor-pointer flex-col items-center gap-1"
+                onClick={() => s.setAvatarStyle(account.address, style)}
+              >
+                <Avatar
+                  seed={profile.avatarSeed}
+                  style={style}
+                  size={40}
+                  className={
+                    style === profile.avatarStyle ? "ring-2 ring-[#111] ring-offset-1" : ""
+                  }
+                />
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="flex-1" />
+      </div>
+      <Divider />
+      <div className="flex gap-2 p-4">
+        <Btn className="flex-1" onClick={() => s.navigate({ name: "home" })}>
+          Skip
+        </Btn>
+        <Btn primary className="flex-1" onClick={done}>
+          Done
+        </Btn>
+      </div>
+    </div>
   );
 }
 

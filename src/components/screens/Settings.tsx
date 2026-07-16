@@ -3,24 +3,29 @@
 import { useState } from "react";
 
 import { BottomNav } from "@/components/BottomNav";
-import { Box, Divider, Hd, Lbl, shortAddr } from "@/components/ui";
-import { useWallet, walletProvider } from "@/store/wallet";
+import { Avatar, Box, Divider, Hd, Lbl, shortAddr } from "@/components/ui";
+import { AVATAR_STYLES, type AvatarStyle } from "@/lib/avatar";
+import { profileFor, useWallet, walletProvider } from "@/store/wallet";
 
 const rowCls =
   "flex w-full cursor-pointer items-center justify-between border-b border-[#eee] py-[10px] text-[11px]";
-const inputCls = "w-full border border-[#111] p-2 text-[11px] outline-none placeholder:text-[#999]";
+const inputCls =
+  "w-full rounded-[12px] border border-[#e4e4e4] p-2 text-[12px] outline-none placeholder:text-[#aaa]";
 
 const AUTO_LOCK_OPTIONS = [1, 5, 15, 30, 60];
 
 export function Settings() {
   const s = useWallet();
   const [accountsOpen, setAccountsOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [lockOpen, setLockOpen] = useState(false);
   const [pwCurrent, setPwCurrent] = useState("");
   const [pwNext, setPwNext] = useState("");
   const [pwMsg, setPwMsg] = useState("");
   const account = s.accounts[s.activeIndex];
+  const profile = account ? profileFor(s.profiles, account.address) : null;
+  const [username, setUsernameLocal] = useState(profile?.username ?? "");
 
   const changePassword = async () => {
     if (pwNext.length < 8) {
@@ -71,6 +76,66 @@ export function Settings() {
             </button>
           </Box>
         )}
+        <button className={rowCls} onClick={() => setProfileOpen((v) => !v)}>
+          <div>Edit Profile</div>
+          <Lbl>›</Lbl>
+        </button>
+        {profileOpen && profile && account && (
+          <Box className="my-1 flex flex-col gap-3 p-3">
+            <div className="flex items-center gap-3">
+              <Avatar seed={profile.avatarSeed} style={profile.avatarStyle} size={48} />
+              <button
+                type="button"
+                className="cursor-pointer text-[10px] text-[#888] underline"
+                onClick={() => s.regenerateAvatar(account.address)}
+              >
+                Regenerate avatar
+              </button>
+            </div>
+            <div>
+              <Lbl className="mb-[6px]">Username</Lbl>
+              <input
+                className={inputCls}
+                placeholder={account.name}
+                value={username}
+                onChange={(e) => setUsernameLocal(e.target.value)}
+                onBlur={() => s.setUsername(account.address, username.trim())}
+              />
+            </div>
+            <div>
+              <Lbl className="mb-[6px]">Avatar Style</Lbl>
+              <div className="grid grid-cols-4 gap-2">
+                {(Object.keys(AVATAR_STYLES) as AvatarStyle[]).map((style) => (
+                  <button
+                    key={style}
+                    type="button"
+                    className="flex cursor-pointer justify-center"
+                    onClick={() => s.setAvatarStyle(account.address, style)}
+                  >
+                    <Avatar
+                      seed={profile.avatarSeed}
+                      style={style}
+                      size={36}
+                      className={
+                        style === profile.avatarStyle ? "ring-2 ring-[#111] ring-offset-1" : ""
+                      }
+                    />
+                  </button>
+                ))}
+              </div>
+            </div>
+            <button
+              type="button"
+              className="cursor-pointer text-left text-[10px] text-[#b00]"
+              onClick={() => {
+                s.resetProfile(account.address);
+                setUsernameLocal("");
+              }}
+            >
+              Reset to default
+            </button>
+          </Box>
+        )}
         <button className={rowCls} onClick={() => s.navigate({ name: "privacy" })}>
           <div>Privacy &amp; Security</div>
           <Lbl>›</Lbl>
@@ -86,8 +151,8 @@ export function Settings() {
             <button
               key={id}
               onClick={() => s.setNetwork(id)}
-              className={`flex-1 cursor-pointer border border-[#111] p-2 text-center text-[10px] capitalize ${
-                s.networkId === id ? "bg-[#111] text-white" : ""
+              className={`flex-1 cursor-pointer rounded-[12px] border p-2 text-center text-[10px] capitalize ${
+                s.networkId === id ? "border-[#111] bg-[#111] text-white" : "border-[#e4e4e4]"
               }`}
             >
               {id === "fuji" ? "Fuji" : "Mainnet"}
@@ -118,7 +183,7 @@ export function Settings() {
             />
             {pwMsg && <Lbl>{pwMsg}</Lbl>}
             <button
-              className="cursor-pointer border-[1.5px] border-[#111] bg-[#111] py-2 text-[10px] font-bold text-white"
+              className="cursor-pointer rounded-[12px] bg-[#111] py-2 text-[10px] font-bold text-white"
               onClick={changePassword}
             >
               Update Password
@@ -138,8 +203,10 @@ export function Settings() {
                   s.setSetting("autoLockMinutes", m);
                   setLockOpen(false);
                 }}
-                className={`flex-1 cursor-pointer border border-[#111] p-2 text-center text-[10px] ${
-                  s.autoLockMinutes === m ? "bg-[#111] text-white" : ""
+                className={`flex-1 cursor-pointer rounded-[12px] border p-2 text-center text-[10px] ${
+                  s.autoLockMinutes === m
+                    ? "border-[#111] bg-[#111] text-white"
+                    : "border-[#e4e4e4]"
                 }`}
               >
                 {m}m

@@ -9,6 +9,7 @@ import {
   BackupPhrase,
   CreateWallet,
   ImportWallet,
+  Personalize,
   Unlock,
   Welcome,
 } from "@/components/screens/Onboarding";
@@ -50,6 +51,8 @@ function render(screen: Screen) {
       return <Settings />;
     case "backup":
       return <BackupPhrase />;
+    case "personalize":
+      return <Personalize />;
   }
 }
 
@@ -63,7 +66,7 @@ export default function Popup() {
   if (!booted) return null;
 
   return (
-    <main className="relative flex h-[650px] w-[380px] flex-col overflow-hidden bg-white">
+    <main className="relative flex h-[650px] w-[380px] flex-col overflow-hidden rounded-[16px] border border-[#ccc] bg-white">
       <AnimatePresence mode="wait">
         <motion.div
           key={screen.name}
