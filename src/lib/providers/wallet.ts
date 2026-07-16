@@ -91,6 +91,17 @@ export class EthersWalletProvider implements WalletProvider {
     return sent.hash;
   }
 
+  /**
+   * Private key for the account at `address` (requires unlocked wallet).
+   * Used by the eERC provider to build a viem WalletClient — not part of
+   * the WalletProvider interface.
+   */
+  getPrivateKeyFor(address: string): `0x${string}` {
+    const account = this.accounts.find((a) => a.address.toLowerCase() === address.toLowerCase());
+    if (!account) throw new Error("Unknown account");
+    return this.signerAt(account.index).privateKey as `0x${string}`;
+  }
+
   /** Danger: wipes the stored vault. */
   async reset(): Promise<void> {
     this.lock();

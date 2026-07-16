@@ -13,10 +13,12 @@
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
     "package": "pnpm build:ext && cd out && zip -r ../aevra-extension.zip .",
-    "smoke": "esbuild scripts/smoke.ts --bundle --platform=node --format=esm --alias:@=./src --outfile=node_modules/.cache/smoke.mjs && node node_modules/.cache/smoke.mjs",
+    "circuits": "node scripts/fetch-circuits.mjs",
+    "smoke": "esbuild scripts/smoke.ts --bundle --platform=node --format=cjs --alias:@=./src --outfile=node_modules/.cache/smoke.cjs && node node_modules/.cache/smoke.cjs",
     "prepare": "husky"
   },
   "dependencies": {
+    "@avalabs/eerc-sdk": "^1.0.2",
     "@hookform/resolvers": "^5.4.0",
     "@tanstack/react-query": "^5.101.2",
     "ethers": "^6.17.0",

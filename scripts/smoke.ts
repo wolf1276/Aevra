@@ -10,8 +10,8 @@ const mem = new Map<string, string>();
 
 import { NETWORKS } from "@/config/networks";
 import { portfolioProvider } from "@/lib/providers/portfolio";
-import { privacyProvider } from "@/lib/providers/privacy.mock";
-import { shieldProvider } from "@/lib/providers/shield.mock";
+import { privacyProvider } from "@/lib/providers/privacy.eerc";
+import { shieldProvider } from "@/lib/providers/shield.eerc";
 import { transactionProvider } from "@/lib/providers/transactions";
 import { walletProvider } from "@/lib/providers/wallet";
 
@@ -48,46 +48,30 @@ async function main() {
   const history = await transactionProvider.getHistory(acct.address, NETWORKS.fuji);
   assert.ok(Array.isArray(history));
 
-  // mock shield flow
-  const steps: string[] = [];
-  const res = await shieldProvider.shield(acct.address, "AVAX", 10n ** 18n, (p) =>
-    steps.push(p.step),
-  );
-  assert.match(res.txHash, /^0x[0-9a-f]{64}$/);
-  assert.match(res.proofId, /^proof_/);
-  assert.ok(steps.includes("generating-proof") && steps.at(-1) === "done");
-  let shielded = await shieldProvider.getShieldedBalances(acct.address);
-  assert.equal(shielded[0].symbol, "eAVAX");
-  assert.equal(shielded[0].balance, 10n ** 18n);
+  // eERC Converter provider — non-chain-writing checks only.
+  // (Shield/unshield/transfer against Fuji require a funded wallet and a
+  // deployed Converter — see docs/EERC.md for the manual E2E procedure.)
+  const assets = shieldProvider.getSupportedAssets();
+  assert.ok(assets.some((a) => a.symbol === "USDC") && assets.some((a) => a.symbol === "WAVAX"));
 
-  // shielded send hides amount
-  await shieldProvider.shieldedSend(
-    acct.address,
-    "AVAX",
-    10n ** 17n,
-    "0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC",
-  );
-  const activity = await shieldProvider.getShieldedActivity(acct.address);
-  assert.equal(activity[0].type, "shielded-send");
-  assert.equal(activity[0].amount, "••••");
+  // native AVAX is not shieldable in Converter Mode
+  await assert.rejects(() => shieldProvider.shield(acct.address, "AVAX", 10n ** 18n), /WAVAX/);
+  // unknown tokens rejected
+  await assert.rejects(() => shieldProvider.shield(acct.address, "DOGE", 1n), /Unsupported/);
+  // without a configured converter address, ops fail loudly …
+  await assert.rejects(() => shieldProvider.shield(acct.address, "USDC", 1n), /Converter/);
+  // … while balance reads degrade to empty instead of crashing the popup
+  assert.deepEqual(await shieldProvider.getShieldedBalances(acct.address), []);
+  assert.ok(Array.isArray(await shieldProvider.getShieldedActivity(acct.address)));
 
-  // unshield: insufficient rejected, valid succeeds
-  await assert.rejects(() => shieldProvider.unshield(acct.address, "eAVAX", 10n ** 19n));
-  await shieldProvider.unshield(acct.address, "eAVAX", 4n * 10n ** 17n);
-  shielded = await shieldProvider.getShieldedBalances(acct.address);
-  assert.equal(shielded[0].balance, 5n * 10n ** 17n);
-
-  // privacy: score 100 (all value shielded, 0 public), reveal, proof
+  // privacy stats work from public-only holdings (0 shielded)
   const stats = await privacyProvider.getStats(acct.address);
-  assert.equal(stats.score, 100);
-  const reveal = await privacyProvider.revealTransaction(acct.address, activity[0].hash);
-  assert.match(reveal.description, /Revealed/);
-  const revealed = (await shieldProvider.getShieldedActivity(acct.address)).find(
-    (t) => t.hash === activity[0].hash,
-  );
-  assert.equal(revealed?.revealed, true);
-  const proof = await privacyProvider.generateProof(acct.address, activity[0].hash);
-  assert.match(proof.proofId, /^proof_/);
+  assert.equal(stats.shieldedPct, 0);
+  assert.ok(Array.isArray(await privacyProvider.getReveals(acct.address)));
+
+  // locked wallet → no decryption possible → empty shielded balances
+  walletProvider.lock();
+  assert.deepEqual(await shieldProvider.getShieldedBalances(acct.address), []);
 
   console.log("ALL SMOKE CHECKS PASSED");
 }

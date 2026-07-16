@@ -2,8 +2,8 @@ import { create } from "zustand";
 
 import { NETWORKS } from "@/config/networks";
 import { portfolioProvider } from "@/lib/providers/portfolio";
-import { privacyProvider } from "@/lib/providers/privacy.mock";
-import { shieldProvider } from "@/lib/providers/shield.mock";
+import { privacyProvider } from "@/lib/providers/privacy.eerc";
+import { shieldProvider } from "@/lib/providers/shield.eerc";
 import { transactionProvider } from "@/lib/providers/transactions";
 import type {
   Account,

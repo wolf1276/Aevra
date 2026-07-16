@@ -13,6 +13,9 @@
 # testing
 /coverage
 
+# eERC ZK circuit artifacts (large; fetched via `pnpm circuits`)
+/public/circuits
+
 # next.js
 /.next/
 /out/
