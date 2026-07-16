@@ -129,6 +129,20 @@ export interface ShieldProvider {
     to: string,
     onProgress?: (p: ShieldProgress) => void,
   ): Promise<ShieldResult>;
+  /**
+   * Confidential send with automatic conversion: if the encrypted balance
+   * can't cover `amount`, the shortfall is approved + deposited from the
+   * public ERC20 balance first, then transferred confidentially. Native
+   * AVAX is wrapped automatically — callers just pass symbol "AVAX".
+   * `amount` is a human decimal string — the provider owns all decimals.
+   */
+  send(
+    address: string,
+    symbol: string,
+    amount: string,
+    to: string,
+    onProgress?: (p: ShieldProgress) => void,
+  ): Promise<ShieldResult>;
   getShieldedActivity(address: string): Promise<TxRecord[]>;
 }
 

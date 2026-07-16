@@ -12,6 +12,7 @@ import {
   erc20Abi,
   http,
   isAddress,
+  parseAbi,
   type PublicClient,
   type WalletClient,
 } from "viem";
@@ -20,6 +21,7 @@ import { avalancheFuji } from "viem/chains";
 
 import { env } from "@/config/env";
 import { NETWORKS, TRACKED_TOKENS } from "@/config/networks";
+import { parseUnits } from "@/lib/format";
 import { storageGet, storageSet } from "@/lib/storage";
 
 import { portfolioProvider } from "./portfolio";
@@ -59,9 +61,11 @@ const CIRCUITS = {
   },
 } as const;
 
-/** ERC20s the Converter can shield. Native AVAX is NOT supported — the
- *  eERC Converter only accepts ERC-20 deposits (wrap to WAVAX first). */
+/** ERC20s the Converter can shield. Native AVAX is supported by wrapping
+ *  to WAVAX automatically — the Converter itself only accepts ERC-20s. */
 export const SHIELDABLE_TOKENS = TRACKED_TOKENS.fuji;
+
+const WAVAX_ABI = parseAbi(["function deposit() payable", "function withdraw(uint256 wad)"]);
 
 // Persisted per-address state: real tx records + the eERC decryption key.
 // The key is deterministically derived from a wallet signature (the SDK's
@@ -85,13 +89,26 @@ async function saveState(address: string, state: EercState): Promise<void> {
 // ── Error normalization ─────────────────────────────────────────────────
 
 function normalizeError(e: unknown): Error {
+  console.error("send pipeline error:", e); // raw cause for debugging — user sees friendly text
   const msg = e instanceof Error ? e.message : String(e);
   if (/user rejected|denied|4001/i.test(msg)) return new Error("Transaction rejected");
-  if (/insufficient funds/i.test(msg)) return new Error("Insufficient AVAX for gas");
-  if (/not registered/i.test(msg)) return new Error("eERC registration required");
-  if (/reverted/i.test(msg)) return new Error("Transaction reverted");
-  if (/fetch|network|timeout|ECONN/i.test(msg)) return new Error("Network error — check RPC");
-  return e instanceof Error ? e : new Error(msg);
+  if (/insufficient funds|insufficient balance/i.test(msg))
+    return new Error("Insufficient balance");
+  if (/invalid recipient/i.test(msg)) return new Error("Invalid recipient address");
+  if (/recipient/i.test(msg)) return new Error("Recipient can't receive private payments yet");
+  if (/fetch|network|timeout|ECONN|mismatch/i.test(msg))
+    return new Error("Network error — please try again");
+  // Everything else (wrap, approval, converter, proof, revert, config) is an
+  // internal pipeline detail — never expose protocol terminology.
+  return new Error("Unable to prepare secure payment. Please try again.");
+}
+
+/** Rescale a bigint amount between decimal systems (ceil when losing precision). */
+function scaleUnits(amount: bigint, fromDecimals: number, toDecimals: number): bigint {
+  const diff = toDecimals - fromDecimals;
+  if (diff >= 0) return amount * 10n ** BigInt(diff);
+  const div = 10n ** BigInt(-diff);
+  return (amount + div - 1n) / div;
 }
 
 // ── Provider ────────────────────────────────────────────────────────────
@@ -208,14 +225,77 @@ export class EERCConverterProvider implements ShieldProvider {
     }));
   }
 
-  private resolveToken(symbol: string): { symbol: string; address: string; decimals: number } {
+  /** Asset resolver: maps a user-facing symbol to its shieldable ERC20 and
+   *  pipeline. Native AVAX routes through the wrap pipeline (WAVAX) — the
+   *  caller/UI never learns which pipeline was picked. */
+  private resolveToken(symbol: string): {
+    symbol: string;
+    address: string;
+    decimals: number;
+    /** true → wrap/unwrap native AVAX around the confidential flow */
+    native: boolean;
+    /** what activity records + results should call this asset */
+    displaySymbol: string;
+  } {
     const plain = symbol.startsWith("e") ? symbol.slice(1) : symbol;
-    if (plain === "AVAX") {
-      throw new Error("AVAX can't be shielded directly — wrap to WAVAX first (ERC-20 only)");
-    }
-    const token = SHIELDABLE_TOKENS.find((t) => t.symbol === plain);
+    const native = plain === "AVAX";
+    const token = SHIELDABLE_TOKENS.find((t) => t.symbol === (native ? "WAVAX" : plain));
     if (!token) throw new Error(`Unsupported token: ${symbol}`);
-    return token;
+    return { ...token, native, displaySymbol: native ? "AVAX" : token.symbol };
+  }
+
+  /** Ensure `owner` holds ≥ `needed` WAVAX, wrapping native AVAX for any deficit. */
+  private async wrapIfNeeded(
+    session: Session,
+    owner: string,
+    tokenAddress: string,
+    needed: bigint,
+  ): Promise<void> {
+    const wavaxBalance = (await session.client.readContract({
+      address: tokenAddress as `0x${string}`,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [owner as `0x${string}`],
+    })) as bigint;
+    if (wavaxBalance >= needed) return;
+    const deficit = needed - wavaxBalance;
+    const nativeBalance = await session.client.getBalance({ address: owner as `0x${string}` });
+    if (nativeBalance <= deficit) throw new Error("Insufficient balance"); // must also leave gas
+    const hash = await session.wallet.writeContract({
+      address: tokenAddress as `0x${string}`,
+      abi: WAVAX_ABI,
+      functionName: "deposit",
+      value: deficit,
+      chain: avalancheFuji,
+      account: session.wallet.account!,
+    });
+    await this.confirm(session, hash);
+  }
+
+  /** Unwrap up to `amount` WAVAX back to native AVAX (capped at actual balance). */
+  private async unwrap(
+    session: Session,
+    owner: string,
+    tokenAddress: string,
+    amount: bigint,
+  ): Promise<void> {
+    const balance = (await session.client.readContract({
+      address: tokenAddress as `0x${string}`,
+      abi: erc20Abi,
+      functionName: "balanceOf",
+      args: [owner as `0x${string}`],
+    })) as bigint;
+    const wad = amount < balance ? amount : balance;
+    if (wad <= 0n) return;
+    const hash = await session.wallet.writeContract({
+      address: tokenAddress as `0x${string}`,
+      abi: WAVAX_ABI,
+      functionName: "withdraw",
+      args: [wad],
+      chain: avalancheFuji,
+      account: session.wallet.account!,
+    });
+    await this.confirm(session, hash);
   }
 
   /** Read + decrypt the on-chain encrypted balance for one token. */
@@ -325,6 +405,7 @@ export class EERCConverterProvider implements ShieldProvider {
       const token = this.resolveToken(symbol);
       onProgress?.({ step: "preparing", percent: 10 });
       const session = await this.initialize(address);
+      if (token.native) await this.wrapIfNeeded(session, address, token.address, amount);
       await this.approveERC20(session, address, token.address, amount);
       onProgress?.({ step: "generating-proof", percent: 45 });
       const { transactionHash } = await session.eerc.deposit(
@@ -338,7 +419,7 @@ export class EERCConverterProvider implements ShieldProvider {
       await this.record(address, {
         hash: transactionHash,
         type: "shield",
-        symbol: token.symbol,
+        symbol: token.displaySymbol,
         amount: (Number(amount) / 10 ** token.decimals).toFixed(4),
         timestamp: Date.now(),
         visibility: "shielded",
@@ -378,11 +459,16 @@ export class EERCConverterProvider implements ShieldProvider {
       );
       onProgress?.({ step: "submitting", percent: 85 });
       await this.confirm(session, transactionHash);
+      if (token.native) {
+        // deliver native AVAX, never leave the user holding the wrapper
+        const erc20Amount = scaleUnits(amount, Number(session.eercDecimals), token.decimals);
+        await this.unwrap(session, address, token.address, erc20Amount);
+      }
       onProgress?.({ step: "done", percent: 100 });
       await this.record(address, {
         hash: transactionHash,
         type: "unshield",
-        symbol: token.symbol,
+        symbol: token.displaySymbol,
         amount: (Number(amount) / 10 ** Number(session.eercDecimals)).toFixed(4),
         timestamp: Date.now(),
         visibility: "shielded",
@@ -415,7 +501,7 @@ export class EERCConverterProvider implements ShieldProvider {
         functionName: "isUserRegistered",
         args: [to as `0x${string}`],
       })) as boolean;
-      if (!recipientRegistered) throw new Error("Recipient is not registered with eERC");
+      if (!recipientRegistered) throw new Error("Recipient can't receive private payments yet");
       const { decrypted, encrypted } = await this.readEncryptedBalance(
         session,
         address,
@@ -437,7 +523,7 @@ export class EERCConverterProvider implements ShieldProvider {
       await this.record(address, {
         hash: transactionHash,
         type: "shielded-send",
-        symbol: `e${token.symbol}`,
+        symbol: `e${token.displaySymbol}`,
         amount: "••••", // confidential — decryptable via Activity reveal
         timestamp: Date.now(),
         visibility: "shielded",
@@ -447,6 +533,43 @@ export class EERCConverterProvider implements ShieldProvider {
         proofId: transactionHash,
       });
       return { txHash: transactionHash, proofId: transactionHash };
+    } catch (e) {
+      throw normalizeError(e);
+    }
+  }
+
+  /** Confidential send with automatic conversion (see ShieldProvider.send). */
+  async send(
+    address: string,
+    symbol: string,
+    amount: string, // human decimal string
+    to: string,
+    onProgress?: (p: ShieldProgress) => void,
+  ): Promise<ShieldResult> {
+    try {
+      const token = this.resolveToken(symbol);
+      if (!isAddress(to)) throw new Error("Invalid recipient address");
+      onProgress?.({ step: "preparing", percent: 5 });
+      const session = await this.initialize(address);
+      const eercAmount = parseUnits(amount, Number(session.eercDecimals));
+      const { decrypted } = await this.readEncryptedBalance(session, address, token.address);
+      if (eercAmount > decrypted) {
+        // auto-convert the shortfall from the public ERC20 balance
+        const shortfall = scaleUnits(
+          eercAmount - decrypted,
+          Number(session.eercDecimals),
+          token.decimals,
+        );
+        // displaySymbol keeps the wrap pipeline engaged for native AVAX
+        await this.shield(address, token.displaySymbol, shortfall, (p) =>
+          onProgress?.({ step: "preparing", percent: 5 + Math.floor(p.percent * 0.35) }),
+        );
+      }
+      return await this.shieldedSend(address, symbol, eercAmount, to, (p) =>
+        onProgress?.(
+          p.step === "done" ? p : { step: p.step, percent: 40 + Math.floor(p.percent * 0.6) },
+        ),
+      );
     } catch (e) {
       throw normalizeError(e);
     }
