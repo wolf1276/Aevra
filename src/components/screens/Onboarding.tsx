@@ -3,7 +3,7 @@
 // Not drawn in the wireframe set — kept in the same visual language,
 // minimal, since Phase 1 requires wallet creation & import.
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -40,11 +40,15 @@ export function Welcome() {
 
 export function CreateWallet() {
   const { navigate, createWallet } = useWallet();
-  const mnemonic = useMemo(() => walletProvider.generateMnemonic(), []);
+  const [mnemonic, setMnemonic] = useState("");
   const [revealed, setRevealed] = useState(false);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const form = useForm({ resolver: zodResolver(passwordSchema) });
+
+  useEffect(() => {
+    void walletProvider.generateMnemonic().then(setMnemonic);
+  }, []);
 
   const submit = form.handleSubmit(async ({ password }) => {
     setBusy(true);
@@ -210,26 +214,26 @@ export function Unlock() {
 
 export function BackupPhrase() {
   const navigate = useWallet((s) => s.navigate);
-  const [revealed, setRevealed] = useState(false);
+  const [mnemonic, setMnemonic] = useState("");
+  const reveal = () => {
+    void walletProvider.getMnemonic().then(setMnemonic);
+  };
   return (
     <div className="flex flex-1 flex-col">
       <Header title="Backup Phrase" onBack={() => navigate({ name: "settings" })} />
       <div className="flex flex-1 flex-col p-4">
         <Lbl className="mb-[6px]">Never share this phrase with anyone</Lbl>
-        {revealed ? (
+        {mnemonic ? (
           <Box className="grid grid-cols-3 gap-1 p-3">
-            {walletProvider
-              .getMnemonic()
-              .split(" ")
-              .map((w, i) => (
-                <div key={i} className="text-[10px]">
-                  <span className="text-[#999]">{i + 1}.</span> {w}
-                </div>
-              ))}
+            {mnemonic.split(" ").map((w, i) => (
+              <div key={i} className="text-[10px]">
+                <span className="text-[#999]">{i + 1}.</span> {w}
+              </div>
+            ))}
           </Box>
         ) : (
           <Ph className="p-6 text-center">
-            <button type="button" onClick={() => setRevealed(true)} className="cursor-pointer">
+            <button type="button" onClick={reveal} className="cursor-pointer">
               <Lbl>Tap to reveal phrase</Lbl>
             </button>
           </Ph>

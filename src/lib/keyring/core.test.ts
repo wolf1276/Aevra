@@ -1,17 +1,17 @@
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { EthersWalletProvider } from "./wallet";
+import { Keyring } from "./core";
 
 // Known test vector — never use on a real network.
 const MNEMONIC = "test test test test test test test test test test test junk";
 const ADDR0 = "0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266";
 
-describe("EthersWalletProvider", () => {
-  let provider: EthersWalletProvider;
+describe("Keyring", () => {
+  let provider: Keyring;
 
   beforeEach(() => {
     localStorage.clear();
-    provider = new EthersWalletProvider();
+    provider = new Keyring();
   });
 
   it("generates a valid 12-word mnemonic", () => {
@@ -38,7 +38,7 @@ describe("EthersWalletProvider", () => {
 
     await expect(provider.unlock("wrong")).rejects.toThrow();
 
-    const fresh = new EthersWalletProvider();
+    const fresh = new Keyring();
     const accounts = await fresh.unlock("pw");
     expect(accounts[0].address).toBe(ADDR0);
   });
@@ -49,15 +49,15 @@ describe("EthersWalletProvider", () => {
     expect(second.index).toBe(1);
     expect(second.address).not.toBe(ADDR0);
 
-    const fresh = new EthersWalletProvider();
+    const fresh = new Keyring();
     expect(await fresh.unlock("pw")).toHaveLength(2);
   });
 
   it("changes password", async () => {
     await provider.createWallet(MNEMONIC, "pw");
     await provider.changePassword("pw", "new");
-    await expect(new EthersWalletProvider().unlock("pw")).rejects.toThrow();
-    expect(await new EthersWalletProvider().unlock("new")).toHaveLength(1);
+    await expect(new Keyring().unlock("pw")).rejects.toThrow();
+    expect(await new Keyring().unlock("new")).toHaveLength(1);
   });
 
   it("reset wipes the vault", async () => {
@@ -71,6 +71,6 @@ describe("EthersWalletProvider", () => {
     await provider.createWallet(MNEMONIC, "pw");
     provider.lock();
     expect(() => provider.getMnemonic()).toThrow("Wallet locked");
-    expect(() => provider.getPrivateKeyFor(ADDR0)).toThrow();
+    await expect(provider.signMessage(ADDR0, "hi")).rejects.toThrow();
   });
 });

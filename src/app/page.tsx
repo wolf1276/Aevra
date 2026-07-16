@@ -15,7 +15,8 @@ import {
 import { Privacy } from "@/components/screens/Privacy";
 import { Receive, Send, SendReview, SendSuccess } from "@/components/screens/Send";
 import { Settings } from "@/components/screens/Settings";
-import { type Screen, useWallet, walletProvider } from "@/store/wallet";
+import { Toast } from "@/components/Toast";
+import { type Screen, useWallet } from "@/store/wallet";
 
 function render(screen: Screen) {
   switch (screen.name) {
@@ -53,34 +54,16 @@ function render(screen: Screen) {
 }
 
 export default function Popup() {
-  const { booted, screen, boot, lock, autoLockMinutes } = useWallet();
+  const { booted, screen, boot } = useWallet();
 
   useEffect(() => {
     void boot();
   }, [boot]);
 
-  // auto-lock after inactivity
-  useEffect(() => {
-    if (!walletProvider.isUnlocked()) return;
-    let timer: ReturnType<typeof setTimeout>;
-    const reset = () => {
-      clearTimeout(timer);
-      timer = setTimeout(() => lock(), autoLockMinutes * 60_000);
-    };
-    reset();
-    window.addEventListener("pointerdown", reset);
-    window.addEventListener("keydown", reset);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("pointerdown", reset);
-      window.removeEventListener("keydown", reset);
-    };
-  }, [autoLockMinutes, lock, screen.name]);
-
   if (!booted) return null;
 
   return (
-    <main className="flex h-[650px] w-[380px] flex-col overflow-hidden bg-white">
+    <main className="relative flex h-[650px] w-[380px] flex-col overflow-hidden bg-white">
       <AnimatePresence mode="wait">
         <motion.div
           key={screen.name}
@@ -93,6 +76,7 @@ export default function Popup() {
           {render(screen)}
         </motion.div>
       </AnimatePresence>
+      <Toast />
     </main>
   );
 }

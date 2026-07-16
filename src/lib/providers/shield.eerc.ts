@@ -16,7 +16,6 @@ import {
   type PublicClient,
   type WalletClient,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
 import { avalancheFuji } from "viem/chains";
 
 import { env } from "@/config/env";
@@ -144,7 +143,7 @@ export class EERCConverterProvider implements ShieldProvider {
     }
 
     const fuji = NETWORKS.fuji;
-    const account = privateKeyToAccount(walletProvider.getPrivateKeyFor(address));
+    const account = walletProvider.getRemoteAccount(address);
     const client = createPublicClient({ chain: avalancheFuji, transport: http(fuji.rpcUrl) });
     const chainId = await client.getChainId();
     if (chainId !== fuji.chainId) throw new Error(`Network mismatch — RPC is chain ${chainId}`);
@@ -573,6 +572,15 @@ export class EERCConverterProvider implements ShieldProvider {
     } catch (e) {
       throw normalizeError(e);
     }
+  }
+
+  /** The user's real eERC viewing key, generating it via session init if not yet cached. */
+  async getViewingKey(address: string): Promise<string> {
+    const cached = await loadState(address);
+    if (cached.decryptionKey) return cached.decryptionKey;
+    await this.initialize(address);
+    const state = await loadState(address);
+    return state.decryptionKey ?? "";
   }
 
   // ponytail: activity = locally recorded real txs from this device; full

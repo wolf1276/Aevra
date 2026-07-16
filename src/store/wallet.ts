@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { NETWORKS } from "@/config/networks";
+import { LockedError } from "@/lib/keyring/protocol";
 import { portfolioProvider } from "@/lib/providers/portfolio";
 import { privacyProvider } from "@/lib/providers/privacy.eerc";
 import { shieldProvider } from "@/lib/providers/shield.eerc";
@@ -63,6 +64,7 @@ interface WalletState {
   // settings
   autoLockMinutes: number;
   developerMode: boolean;
+  toast: string | null;
   // actions
   boot(): Promise<void>;
   navigate(screen: Screen): void;
@@ -70,15 +72,19 @@ interface WalletState {
   unlock(password: string): Promise<void>;
   lock(): void;
   addAccount(): Promise<void>;
+  removeLastAccount(): Promise<void>;
+  renameAccount(index: number, name: string): Promise<void>;
   setActiveIndex(i: number): void;
   setNetwork(id: NetworkId): void;
   refresh(): Promise<void>;
   setPendingSend(p: PendingSend | null): void;
   setLastResult(r: WalletState["lastResult"]): void;
   setSetting<K extends "autoLockMinutes" | "developerMode">(key: K, value: WalletState[K]): void;
+  showToast(message: string): void;
 }
 
 const SETTINGS_KEY = "aevra.settings";
+const ACTIVE_INDEX_KEY = "aevra.activeIndex";
 
 export const useWallet = create<WalletState>((set, get) => ({
   booted: false,
@@ -99,6 +105,7 @@ export const useWallet = create<WalletState>((set, get) => ({
   lastResult: null,
   autoLockMinutes: 5,
   developerMode: false,
+  toast: null,
 
   async boot() {
     const [has, settingsRaw] = await Promise.all([
@@ -128,7 +135,10 @@ export const useWallet = create<WalletState>((set, get) => ({
 
   async unlock(password) {
     const accounts = await walletProvider.unlock(password);
-    set({ accounts, activeIndex: 0, screen: { name: "home" } });
+    const savedRaw = await storageGet(ACTIVE_INDEX_KEY);
+    const saved = savedRaw ? Number(savedRaw) : 0;
+    const activeIndex = accounts.some((a) => a.index === saved) ? saved : 0;
+    set({ accounts, activeIndex, screen: { name: "home" } });
     void get().refresh();
   },
 
@@ -138,13 +148,44 @@ export const useWallet = create<WalletState>((set, get) => ({
   },
 
   async addAccount() {
-    const account = await walletProvider.addAccount();
-    set({ accounts: [...get().accounts, account], activeIndex: account.index });
-    void get().refresh();
+    try {
+      const account = await walletProvider.addAccount();
+      set({ accounts: [...get().accounts, account], activeIndex: account.index });
+      void storageSet(ACTIVE_INDEX_KEY, String(account.index));
+      void get().refresh();
+    } catch (e) {
+      if (e instanceof LockedError) get().lock();
+      else throw e;
+    }
+  },
+
+  async removeLastAccount() {
+    try {
+      await walletProvider.removeLastAccount();
+      const accounts = walletProvider.getAccounts();
+      const activeIndex = Math.min(get().activeIndex, accounts.length - 1);
+      set({ accounts, activeIndex });
+      void storageSet(ACTIVE_INDEX_KEY, String(activeIndex));
+      void get().refresh();
+    } catch (e) {
+      if (e instanceof LockedError) get().lock();
+      else throw e;
+    }
+  },
+
+  async renameAccount(index, name) {
+    try {
+      await walletProvider.renameAccount(index, name);
+      set({ accounts: walletProvider.getAccounts() });
+    } catch (e) {
+      if (e instanceof LockedError) get().lock();
+      else throw e;
+    }
   },
 
   setActiveIndex(i) {
     set({ activeIndex: i });
+    void storageSet(ACTIVE_INDEX_KEY, String(i));
     void get().refresh();
   },
 
@@ -160,25 +201,32 @@ export const useWallet = create<WalletState>((set, get) => ({
     if (!account) return;
     const network = NETWORKS[networkId];
     set({ loading: true });
-    const [
-      rawNative,
-      rawTokens,
-      rawShielded,
-      history,
-      shieldedActivity,
-      privacy,
-      reveals,
-      avaxPrice,
-    ] = await Promise.all([
-      portfolioProvider.getNativeBalance(account.address, network).catch(() => 0n),
-      portfolioProvider.getTokenBalances(account.address, network).catch(() => []),
-      shieldProvider.getShieldedBalances(account.address),
-      transactionProvider.getHistory(account.address, network),
-      shieldProvider.getShieldedActivity(account.address),
-      privacyProvider.getStats(account.address).catch(() => null),
-      privacyProvider.getReveals(account.address),
-      portfolioProvider.getAvaxUsdPrice(),
-    ]);
+    let rawNative: bigint,
+      rawTokens: TokenBalance[],
+      rawShielded: ShieldedBalance[],
+      history: TxRecord[],
+      shieldedActivity: TxRecord[],
+      privacy: PrivacyStats | null,
+      reveals: RevealRecord[],
+      avaxPrice: number;
+    try {
+      [rawNative, rawTokens, rawShielded, history, shieldedActivity, privacy, reveals, avaxPrice] =
+        await Promise.all([
+          portfolioProvider.getNativeBalance(account.address, network).catch(() => 0n),
+          portfolioProvider.getTokenBalances(account.address, network).catch(() => []),
+          shieldProvider.getShieldedBalances(account.address),
+          transactionProvider.getHistory(account.address, network),
+          shieldProvider.getShieldedActivity(account.address),
+          privacyProvider.getStats(account.address).catch(() => null),
+          privacyProvider.getReveals(account.address),
+          portfolioProvider.getAvaxUsdPrice(),
+        ]);
+    } catch (e) {
+      set({ loading: false });
+      if (e instanceof LockedError) get().lock();
+      else throw e;
+      return;
+    }
     let nativeBalance = rawNative;
     let tokens = rawTokens;
     let shielded = rawShielded;
@@ -195,6 +243,9 @@ export const useWallet = create<WalletState>((set, get) => ({
         b.underlyingSymbol === "WAVAX" ? { ...b, symbol: "eAVAX", underlyingSymbol: "AVAX" } : b,
       );
     }
+    // ponytail: the account may have changed while these requests were in
+    // flight — drop stale results instead of overwriting the new account's data.
+    if (get().activeIndex !== activeIndex) return;
     set({
       nativeBalance,
       tokens,
@@ -220,6 +271,13 @@ export const useWallet = create<WalletState>((set, get) => ({
     set({ [key]: value } as Partial<WalletState>);
     const { autoLockMinutes, developerMode, networkId } = get();
     void storageSet(SETTINGS_KEY, JSON.stringify({ autoLockMinutes, developerMode, networkId }));
+  },
+
+  showToast(message) {
+    set({ toast: message });
+    setTimeout(() => {
+      if (get().toast === message) set({ toast: null });
+    }, 1500);
   },
 }));
 

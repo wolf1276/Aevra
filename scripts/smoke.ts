@@ -17,7 +17,7 @@ import { walletProvider } from "@/lib/providers/wallet";
 
 async function main() {
   // wallet create / lock / unlock / wrong password
-  const mnemonic = walletProvider.generateMnemonic();
+  const mnemonic = await walletProvider.generateMnemonic();
   assert.equal(mnemonic.split(" ").length, 12);
   const acct = await walletProvider.createWallet(mnemonic, "hunter2hunter2");
   assert.match(acct.address, /^0x[0-9a-fA-F]{40}$/);
@@ -25,7 +25,7 @@ async function main() {
   await assert.rejects(() => walletProvider.unlock("wrong-password"));
   const accounts = await walletProvider.unlock("hunter2hunter2");
   assert.equal(accounts[0].address, acct.address);
-  assert.equal(walletProvider.getMnemonic(), mnemonic);
+  assert.equal(await walletProvider.getMnemonic(), mnemonic);
 
   // add account derives a new address
   const acct2 = await walletProvider.addAccount();

@@ -20,7 +20,7 @@ export interface Account {
 
 export interface WalletProvider {
   /** Generate a new 12-word mnemonic (not yet persisted). */
-  generateMnemonic(): string;
+  generateMnemonic(): Promise<string>;
   /** Create + persist an encrypted wallet from a mnemonic. Returns first account. */
   createWallet(mnemonic: string, password: string): Promise<Account>;
   /** True if an encrypted wallet exists in storage. */
@@ -31,9 +31,12 @@ export interface WalletProvider {
   isUnlocked(): boolean;
   /** Derive the next account and persist its count. */
   addAccount(): Promise<Account>;
+  /** Remove the most recently derived (highest-index) account. */
+  removeLastAccount(): Promise<void>;
+  renameAccount(index: number, name: string): Promise<void>;
   getAccounts(): Account[];
   /** Reveal the mnemonic (requires unlocked wallet). */
-  getMnemonic(): string;
+  getMnemonic(): Promise<string>;
   /** Re-encrypt the stored wallet with a new password. */
   changePassword(current: string, next: string): Promise<void>;
   /** Sign & send a transaction from the given account. Returns tx hash. */
@@ -144,6 +147,8 @@ export interface ShieldProvider {
     onProgress?: (p: ShieldProgress) => void,
   ): Promise<ShieldResult>;
   getShieldedActivity(address: string): Promise<TxRecord[]>;
+  /** The user's eERC viewing key (decrypts their own confidential txs). */
+  getViewingKey(address: string): Promise<string>;
 }
 
 export interface RevealRecord {
