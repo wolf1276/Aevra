@@ -74,14 +74,52 @@ describe("wallet store", () => {
     expect(useWallet.getState().screen).toEqual({ name: "send", symbol: "AVAX" });
   });
 
+  it("folds WAVAX into AVAX unless developer mode", async () => {
+    const { portfolioProvider } = await import("@/lib/providers/portfolio");
+    const { shieldProvider } = await import("@/lib/providers/shield.eerc");
+    const wavaxToken = {
+      symbol: "WAVAX",
+      name: "Wrapped AVAX",
+      address: "0x1",
+      decimals: 18,
+      balance: 5n,
+      usdValue: 150,
+    };
+    const shieldedWavax = {
+      symbol: "eWAVAX",
+      underlyingSymbol: "WAVAX",
+      decimals: 2,
+      balance: 100n,
+      usdValue: 30,
+    };
+    vi.mocked(portfolioProvider.getTokenBalances).mockResolvedValue([wavaxToken]);
+    vi.mocked(shieldProvider.getShieldedBalances).mockResolvedValue([shieldedWavax]);
+
+    await useWallet.getState().createWallet(MNEMONIC, "pw");
+    await flush();
+    let s = useWallet.getState();
+    expect(s.nativeBalance).toBe(12n); // 7 native + 5 folded WAVAX
+    expect(s.tokens).toHaveLength(0);
+    expect(s.shielded[0]).toMatchObject({ symbol: "eAVAX", underlyingSymbol: "AVAX" });
+
+    useWallet.getState().setSetting("developerMode", true);
+    await useWallet.getState().refresh();
+    s = useWallet.getState();
+    expect(s.nativeBalance).toBe(7n);
+    expect(s.tokens[0].symbol).toBe("WAVAX");
+    expect(s.shielded[0].symbol).toBe("eWAVAX");
+
+    vi.mocked(portfolioProvider.getTokenBalances).mockResolvedValue([]);
+    vi.mocked(shieldProvider.getShieldedBalances).mockResolvedValue([]);
+    useWallet.getState().setSetting("developerMode", false);
+  });
+
   it("settings persist across boot", async () => {
     useWallet.getState().setSetting("autoLockMinutes", 15);
-    useWallet.getState().setSetting("defaultSendMode", "public");
     await flush();
 
-    useWallet.setState({ autoLockMinutes: 5, defaultSendMode: "shielded" });
+    useWallet.setState({ autoLockMinutes: 5 });
     await useWallet.getState().boot();
     expect(useWallet.getState().autoLockMinutes).toBe(15);
-    expect(useWallet.getState().defaultSendMode).toBe("public");
   });
 });

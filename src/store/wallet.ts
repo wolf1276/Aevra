@@ -24,15 +24,11 @@ export type Screen =
   | { name: "unlock" }
   | { name: "home" }
   | { name: "assets" }
-  | { name: "token"; symbol: string; shielded: boolean }
+  | { name: "token"; symbol: string }
   | { name: "send"; symbol?: string }
   | { name: "send-review" }
   | { name: "send-success" }
   | { name: "receive" }
-  | { name: "shield"; symbol?: string }
-  | { name: "shield-success" }
-  | { name: "unshield"; symbol?: string }
-  | { name: "unshield-success" }
   | { name: "activity" }
   | { name: "privacy" }
   | { name: "settings" }
@@ -42,7 +38,6 @@ export interface PendingSend {
   to: string;
   amount: string; // decimal string
   symbol: string;
-  mode: "public" | "shielded";
   fee: string; // formatted AVAX
 }
 
@@ -66,7 +61,6 @@ interface WalletState {
   pendingSend: PendingSend | null;
   lastResult: { txHash: string; amount: string; symbol: string; proofId?: string } | null;
   // settings
-  defaultSendMode: "public" | "shielded";
   autoLockMinutes: number;
   developerMode: boolean;
   // actions
@@ -81,10 +75,7 @@ interface WalletState {
   refresh(): Promise<void>;
   setPendingSend(p: PendingSend | null): void;
   setLastResult(r: WalletState["lastResult"]): void;
-  setSetting<K extends "defaultSendMode" | "autoLockMinutes" | "developerMode">(
-    key: K,
-    value: WalletState[K],
-  ): void;
+  setSetting<K extends "autoLockMinutes" | "developerMode">(key: K, value: WalletState[K]): void;
 }
 
 const SETTINGS_KEY = "aevra.settings";
@@ -106,7 +97,6 @@ export const useWallet = create<WalletState>((set, get) => ({
   loading: false,
   pendingSend: null,
   lastResult: null,
-  defaultSendMode: "shielded",
   autoLockMinutes: 5,
   developerMode: false,
 
@@ -118,7 +108,6 @@ export const useWallet = create<WalletState>((set, get) => ({
     if (settingsRaw) {
       const s = JSON.parse(settingsRaw);
       set({
-        defaultSendMode: s.defaultSendMode ?? "shielded",
         autoLockMinutes: s.autoLockMinutes ?? 5,
         developerMode: s.developerMode ?? false,
         networkId: s.networkId ?? "fuji",
@@ -172,9 +161,9 @@ export const useWallet = create<WalletState>((set, get) => ({
     const network = NETWORKS[networkId];
     set({ loading: true });
     const [
-      nativeBalance,
-      tokens,
-      shielded,
+      rawNative,
+      rawTokens,
+      rawShielded,
       history,
       shieldedActivity,
       privacy,
@@ -190,6 +179,22 @@ export const useWallet = create<WalletState>((set, get) => ({
       privacyProvider.getReveals(account.address),
       portfolioProvider.getAvaxUsdPrice(),
     ]);
+    let nativeBalance = rawNative;
+    let tokens = rawTokens;
+    let shielded = rawShielded;
+    // Privacy by default: the wrapped native asset is an internal detail.
+    // Fold its public balance into AVAX and relabel its confidential balance,
+    // unless Developer Mode wants the raw view.
+    if (!get().developerMode) {
+      const wrapped = tokens.find((t) => t.symbol === "WAVAX");
+      if (wrapped) {
+        nativeBalance += wrapped.balance; // same 18 decimals as native AVAX
+        tokens = tokens.filter((t) => t.symbol !== "WAVAX");
+      }
+      shielded = shielded.map((b) =>
+        b.underlyingSymbol === "WAVAX" ? { ...b, symbol: "eAVAX", underlyingSymbol: "AVAX" } : b,
+      );
+    }
     set({
       nativeBalance,
       tokens,
@@ -213,11 +218,8 @@ export const useWallet = create<WalletState>((set, get) => ({
 
   setSetting(key, value) {
     set({ [key]: value } as Partial<WalletState>);
-    const { defaultSendMode, autoLockMinutes, developerMode, networkId } = get();
-    void storageSet(
-      SETTINGS_KEY,
-      JSON.stringify({ defaultSendMode, autoLockMinutes, developerMode, networkId }),
-    );
+    const { autoLockMinutes, developerMode, networkId } = get();
+    void storageSet(SETTINGS_KEY, JSON.stringify({ autoLockMinutes, developerMode, networkId }));
   },
 }));
 
