@@ -5,7 +5,7 @@
   "packageManager": "pnpm@11.13.1",
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "pnpm build:prod",
     "start": "next start",
     "lint": "eslint .",
     "build:ext": "node scripts/build-extension.mjs",
@@ -20,9 +20,9 @@
     "validate": "node scripts/validate-build.mjs",
     "webstore-check": "node scripts/validate-build.mjs",
     "audit:deps": "pnpm audit --audit-level moderate",
-    "package": "pnpm build:prod && pnpm validate && cd out && zip -rq ../aevra-extension.zip .",
+    "package": "pnpm build:prod && pnpm validate && rm -f Aevra-v$npm_package_version.zip && cd out && zip -rq ../Aevra-v$npm_package_version.zip .",
     "release-check": "pnpm verify",
-    "verify": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm audit:deps && pnpm package && echo '\\n✅ verify passed — aevra-extension.zip is release-ready'",
+    "verify": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm audit:deps && pnpm package && echo '\\n✅ verify passed — extension zip is release-ready'",
     "circuits": "node scripts/fetch-circuits.mjs",
     "smoke": "esbuild scripts/smoke.ts --bundle --platform=node --format=cjs --alias:@=./src --outfile=node_modules/.cache/smoke.cjs && node node_modules/.cache/smoke.cjs",
     "prepare": "husky"
