@@ -1,6 +1,7 @@
 import { create } from "zustand";
 
 import { NETWORKS } from "@/config/networks";
+import { type AvatarStyle, DEFAULT_AVATAR_STYLE } from "@/lib/avatar";
 import { LockedError } from "@/lib/keyring/protocol";
 import { portfolioProvider } from "@/lib/providers/portfolio";
 import { privacyProvider } from "@/lib/providers/privacy.eerc";
@@ -33,7 +34,23 @@ export type Screen =
   | { name: "activity" }
   | { name: "privacy" }
   | { name: "settings" }
-  | { name: "backup" };
+  | { name: "backup" }
+  | { name: "personalize" };
+
+/** Local-only personalization — never persisted on-chain or sent in transactions. */
+export interface Profile {
+  username: string;
+  avatarStyle: AvatarStyle;
+  avatarSeed: string;
+}
+
+export function defaultProfile(address: string): Profile {
+  return { username: "", avatarStyle: DEFAULT_AVATAR_STYLE, avatarSeed: address };
+}
+
+export function profileFor(profiles: Record<string, Profile>, address: string): Profile {
+  return profiles[address] ?? defaultProfile(address);
+}
 
 export interface PendingSend {
   to: string;
@@ -65,6 +82,7 @@ interface WalletState {
   autoLockMinutes: number;
   developerMode: boolean;
   toast: string | null;
+  profiles: Record<string, Profile>;
   // actions
   boot(): Promise<void>;
   navigate(screen: Screen): void;
@@ -81,10 +99,15 @@ interface WalletState {
   setLastResult(r: WalletState["lastResult"]): void;
   setSetting<K extends "autoLockMinutes" | "developerMode">(key: K, value: WalletState[K]): void;
   showToast(message: string): void;
+  setUsername(address: string, username: string): void;
+  setAvatarStyle(address: string, style: AvatarStyle): void;
+  regenerateAvatar(address: string): void;
+  resetProfile(address: string): void;
 }
 
 const SETTINGS_KEY = "aevra.settings";
 const ACTIVE_INDEX_KEY = "aevra.activeIndex";
+const PROFILES_KEY = "aevra.profiles";
 
 export const useWallet = create<WalletState>((set, get) => ({
   booted: false,
@@ -106,11 +129,13 @@ export const useWallet = create<WalletState>((set, get) => ({
   autoLockMinutes: 5,
   developerMode: false,
   toast: null,
+  profiles: {},
 
   async boot() {
-    const [has, settingsRaw] = await Promise.all([
+    const [has, settingsRaw, profilesRaw] = await Promise.all([
       walletProvider.hasWallet(),
       storageGet(SETTINGS_KEY),
+      storageGet(PROFILES_KEY),
     ]);
     if (settingsRaw) {
       const s = JSON.parse(settingsRaw);
@@ -120,6 +145,7 @@ export const useWallet = create<WalletState>((set, get) => ({
         networkId: s.networkId ?? "fuji",
       });
     }
+    if (profilesRaw) set({ profiles: JSON.parse(profilesRaw) });
     set({ booted: true, screen: { name: has ? "unlock" : "welcome" } });
   },
 
@@ -129,7 +155,7 @@ export const useWallet = create<WalletState>((set, get) => ({
 
   async createWallet(mnemonic, password) {
     const account = await walletProvider.createWallet(mnemonic, password);
-    set({ accounts: [account], activeIndex: 0, screen: { name: "home" } });
+    set({ accounts: [account], activeIndex: 0, screen: { name: "personalize" } });
     void get().refresh();
   },
 
@@ -278,6 +304,41 @@ export const useWallet = create<WalletState>((set, get) => ({
     setTimeout(() => {
       if (get().toast === message) set({ toast: null });
     }, 1500);
+  },
+
+  setUsername(address, username) {
+    const profiles = {
+      ...get().profiles,
+      [address]: { ...profileFor(get().profiles, address), username },
+    };
+    set({ profiles });
+    void storageSet(PROFILES_KEY, JSON.stringify(profiles));
+  },
+
+  setAvatarStyle(address, avatarStyle) {
+    const profiles = {
+      ...get().profiles,
+      [address]: { ...profileFor(get().profiles, address), avatarStyle },
+    };
+    set({ profiles });
+    void storageSet(PROFILES_KEY, JSON.stringify(profiles));
+  },
+
+  regenerateAvatar(address) {
+    const avatarSeed = crypto.randomUUID();
+    const profiles = {
+      ...get().profiles,
+      [address]: { ...profileFor(get().profiles, address), avatarSeed },
+    };
+    set({ profiles });
+    void storageSet(PROFILES_KEY, JSON.stringify(profiles));
+  },
+
+  resetProfile(address) {
+    const profiles = { ...get().profiles };
+    delete profiles[address];
+    set({ profiles });
+    void storageSet(PROFILES_KEY, JSON.stringify(profiles));
   },
 }));
 

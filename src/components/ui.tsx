@@ -1,31 +1,30 @@
 // Wireframe design primitives — direct translations of the .dc.html classes.
 import type { ReactNode } from "react";
+import { useId, useMemo } from "react";
+
+import { type AvatarStyle, DEFAULT_AVATAR_STYLE, generateAvatarSvg } from "@/lib/avatar";
 
 const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).join(" ");
 
 /** .lbl — 9px uppercase gray label */
 export function Lbl({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx("text-[9px] tracking-[0.5px] text-[#777] uppercase", className)}>
+    <div className={cx("text-[9px] font-medium tracking-[0.4px] text-[#888] uppercase", className)}>
       {children}
     </div>
   );
 }
 
-/** .hd — 11px bold uppercase heading */
+/** .hd — bold heading, no uppercase (size set per-usage) */
 export function Hd({ children, className }: { children: ReactNode; className?: string }) {
-  return (
-    <div className={cx("text-[11px] font-bold tracking-[0.5px] uppercase", className)}>
-      {children}
-    </div>
-  );
+  return <div className={cx("text-[13px] font-bold", className)}>{children}</div>;
 }
 
-/** .divider — full-width 1px black rule */
-export const Divider = () => <div className="h-px w-full shrink-0 bg-[#111]" />;
+/** .divider — full-width 1px light rule */
+export const Divider = () => <div className="h-px w-full shrink-0 bg-[#eee]" />;
 
-/** .dividerL — light rule */
-export const DividerL = () => <div className="h-px w-full shrink-0 bg-[#bbb]" />;
+/** light rule used between sections (same treatment as .divider in the wireframe) */
+export const DividerL = () => <div className="h-px w-full shrink-0 bg-[#eee]" />;
 
 /** .pill — bordered rounded chip */
 export function Pill({
@@ -41,7 +40,7 @@ export function Pill({
     <div
       onClick={onClick}
       className={cx(
-        "rounded-[20px] border border-[#111] px-[10px] py-[4px] text-center text-[9px]",
+        "rounded-[20px] border border-[#ccc] px-[10px] py-[3px] text-center text-[9px] font-semibold",
         onClick && "cursor-pointer",
         className,
       )}
@@ -51,7 +50,7 @@ export function Pill({
   );
 }
 
-/** .box — 1px black border container */
+/** .card — rounded light-gray-bordered container */
 export function Box({
   children,
   className,
@@ -64,14 +63,18 @@ export function Box({
   return (
     <div
       onClick={onClick}
-      className={cx("border border-[#111]", onClick && "cursor-pointer", className)}
+      className={cx(
+        "rounded-[14px] border border-[#e4e4e4] bg-white",
+        onClick && "cursor-pointer",
+        className,
+      )}
     >
       {children}
     </div>
   );
 }
 
-/** .btn — bordered action button */
+/** .btn / .btn-p / .btn-s — rounded action button */
 export function Btn({
   children,
   className,
@@ -90,8 +93,8 @@ export function Btn({
       onClick={onClick}
       disabled={disabled}
       className={cx(
-        "border-[1.5px] border-[#111] py-[10px] text-center text-[10px] font-bold",
-        primary && "bg-[#111] text-white",
+        "rounded-[12px] py-[12px] text-center text-[12px] font-semibold",
+        primary ? "bg-[#111] text-white" : "border border-[#ccc] text-[#111]",
         disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer",
         className,
       )}
@@ -101,7 +104,7 @@ export function Btn({
   );
 }
 
-/** .circ .ph — dashed hatched placeholder circle (token/tx icon slot) */
+/** .circ — light-gray-bordered circle (avatar/token/tx icon slot) */
 export function Circ({
   size,
   ph,
@@ -117,7 +120,7 @@ export function Circ({
     <div
       style={{ width: size, height: size }}
       className={cx(
-        "flex shrink-0 items-center justify-center rounded-full border border-[#111]",
+        "flex shrink-0 items-center justify-center rounded-full border border-[#ccc] bg-[#f4f4f4]",
         ph &&
           "border-dashed border-[#999] [background:repeating-linear-gradient(45deg,#f2f2f2,#f2f2f2_4px,#e4e4e4_4px,#e4e4e4_8px)]",
         className,
@@ -128,12 +131,61 @@ export function Circ({
   );
 }
 
-/** .ph — hatched placeholder panel */
+/** DiceBear SVGs hardcode ids (masks/gradients) that collide when several
+ * avatars share a document — rewrite them to be unique per instance. */
+function namespaceSvgIds(svg: string, uid: string): string {
+  const ids = new Set([...svg.matchAll(/\sid="([^"]+)"/g)].map((m) => m[1]));
+  let out = svg;
+  for (const id of ids) {
+    out = out
+      .split(`id="${id}"`)
+      .join(`id="${id}--${uid}"`)
+      .split(`#${id})`)
+      .join(`#${id}--${uid})`);
+  }
+  return out;
+}
+
+/** Deterministic DiceBear avatar (local SVG, cached by seed+style) */
+export function Avatar({
+  seed,
+  style = DEFAULT_AVATAR_STYLE,
+  size,
+  className,
+  onClick,
+}: {
+  seed: string;
+  style?: AvatarStyle;
+  size: number;
+  className?: string;
+  onClick?: () => void;
+}) {
+  const uid = useId().replace(/:/g, "");
+  const svg = useMemo(
+    () => namespaceSvgIds(generateAvatarSvg(seed, style), uid),
+    [seed, style, uid],
+  );
+  return (
+    <div
+      onClick={onClick}
+      style={{ width: size, height: size }}
+      className={cx(
+        "shrink-0 overflow-hidden rounded-full border border-[#ccc] bg-[#f4f4f4] [&>svg]:h-full [&>svg]:w-full",
+        onClick && "cursor-pointer",
+        className,
+      )}
+      // ponytail: DiceBear SVGs are locally generated, not user/network input — safe to inject.
+      dangerouslySetInnerHTML={{ __html: svg }}
+    />
+  );
+}
+
+/** .slot — hatched placeholder panel */
 export function Ph({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cx(
-        "border border-dashed border-[#999] [background:repeating-linear-gradient(45deg,#f2f2f2,#f2f2f2_4px,#e4e4e4_4px,#e4e4e4_8px)]",
+        "rounded-[12px] border border-dashed border-[#bbb] [background:repeating-linear-gradient(45deg,#f2f2f2,#f2f2f2_4px,#e4e4e4_4px,#e4e4e4_8px)]",
         className,
       )}
     >
@@ -142,19 +194,18 @@ export function Ph({ children, className }: { children: ReactNode; className?: s
   );
 }
 
-/** Screen header with optional back arrow (matches "← TITLE" rows) */
+/** Screen header with optional back arrow (matches "← Title" rows) */
 export function Header({ title, onBack }: { title: string; onBack?: () => void }) {
   return (
     <>
-      <div className="flex items-center gap-2 px-4 py-[14px]">
+      <div className="flex items-center gap-2 px-[18px] py-[14px]">
         {onBack && (
-          <button onClick={onBack} className="cursor-pointer text-[11px] text-[#777]">
+          <button onClick={onBack} className="cursor-pointer text-[13px] text-[#888]">
             ←
           </button>
         )}
-        <Hd>{title}</Hd>
+        <Hd className="text-[13px]">{title}</Hd>
       </div>
-      <Divider />
     </>
   );
 }

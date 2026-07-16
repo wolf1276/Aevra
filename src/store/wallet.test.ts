@@ -45,9 +45,9 @@ describe("wallet store", () => {
     expect(useWallet.getState().booted).toBe(true);
   });
 
-  it("create wallet navigates home and loads portfolio", async () => {
+  it("create wallet navigates to personalize and loads portfolio", async () => {
     await useWallet.getState().createWallet(MNEMONIC, "pw");
-    expect(useWallet.getState().screen).toEqual({ name: "home" });
+    expect(useWallet.getState().screen).toEqual({ name: "personalize" });
     expect(useWallet.getState().accounts).toHaveLength(1);
     await flush();
     expect(useWallet.getState().nativeBalance).toBe(7n);
