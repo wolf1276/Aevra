@@ -131,10 +131,8 @@ export function SendReview() {
   const [error, setError] = useState("");
   const account = s.accounts[s.activeIndex];
 
-  if (!p) {
-    s.navigate({ name: "send" });
-    return null;
-  }
+  // only reachable via review(), which sets pendingSend; cleared during exit animation
+  if (!p) return null;
 
   const confirm = async () => {
     setBusy(true);
@@ -164,9 +162,9 @@ export function SendReview() {
         proofId = result.proofId;
       }
       s.setLastResult({ txHash, amount: p.amount, symbol: p.symbol, proofId });
+      s.navigate({ name: "send-success" }); // before clearing pendingSend — see effect above
       s.setPendingSend(null);
       void s.refresh();
-      s.navigate({ name: "send-success" });
     } catch (e) {
       setError(e instanceof Error ? e.message.slice(0, 100) : "Transaction failed");
       setBusy(false);
