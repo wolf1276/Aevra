@@ -12,3 +12,11 @@ export const env = {
   eercCircuitBase: process.env.NEXT_PUBLIC_EERC_CIRCUITS_BASE ?? "/circuits",
   featureConfidentialTransfers: process.env.NEXT_PUBLIC_FEATURE_CONFIDENTIAL_TRANSFERS === "true",
 } as const;
+
+// Fail fast at build/startup if a feature is enabled without its required config.
+if (env.featureConfidentialTransfers && (!env.eercRegistrarAddress || !env.eercConverterAddress)) {
+  throw new Error(
+    "NEXT_PUBLIC_FEATURE_CONFIDENTIAL_TRANSFERS=true requires " +
+      "NEXT_PUBLIC_EERC_REGISTRAR_ADDRESS and NEXT_PUBLIC_EERC_CONVERTER_ADDRESS",
+  );
+}
