@@ -1,13 +1,23 @@
 "use client";
 // 13 · Privacy & Security (reached via Settings or the Protected pill)
+import { useEffect, useState } from "react";
+
 import { Box, Circ, DividerL, Hd, Header, Lbl, timeAgo } from "@/components/ui";
-import { useWallet } from "@/store/wallet";
+import { shieldProvider, useWallet } from "@/store/wallet";
 
 export function Privacy() {
   const s = useWallet();
   const account = s.accounts[s.activeIndex];
-  // deterministic mock viewer key derived from the address
-  const viewerKey = account ? `vk_${account.address.slice(2, 18).toLowerCase()}` : "";
+  const [viewerKey, setViewerKey] = useState("");
+
+  useEffect(() => {
+    if (!account) return;
+    setViewerKey("");
+    shieldProvider
+      .getViewingKey(account.address)
+      .then(setViewerKey)
+      .catch(() => setViewerKey("Unavailable — try again later"));
+  }, [account]);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -29,7 +39,10 @@ export function Privacy() {
           <div className="mt-1 text-[10px] break-all">{viewerKey}</div>
           <button
             className="mt-2 cursor-pointer border border-[#111] px-3 py-1 text-[9px] font-bold uppercase"
-            onClick={() => void navigator.clipboard.writeText(viewerKey)}
+            onClick={() => {
+              void navigator.clipboard.writeText(viewerKey);
+              s.showToast("Viewer key copied");
+            }}
           >
             Copy
           </button>
