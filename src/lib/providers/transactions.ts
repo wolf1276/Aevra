@@ -1,5 +1,7 @@
 import { formatEther, JsonRpcProvider } from "ethers";
 
+import { withRetry } from "@/lib/rpc-retry";
+
 import type { GasEstimate, NetworkInfo, TransactionProvider, TxRecord } from "./types";
 
 // Routescan (powers Snowtrace) — free etherscan-compatible API, no key needed.
@@ -25,8 +27,8 @@ export class RpcTransactionProvider implements TransactionProvider {
   ): Promise<GasEstimate> {
     const provider = new JsonRpcProvider(network.rpcUrl, network.chainId);
     const [gasLimit, feeData] = await Promise.all([
-      provider.estimateGas({ from, to: tx.to, value: tx.value, data: tx.data }),
-      provider.getFeeData(),
+      withRetry(() => provider.estimateGas({ from, to: tx.to, value: tx.value, data: tx.data })),
+      withRetry(() => provider.getFeeData()),
     ]);
     const maxFeePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 25_000_000_000n;
     return { gasLimit, maxFeePerGas, fee: gasLimit * maxFeePerGas };
