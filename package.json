@@ -29,6 +29,8 @@
   },
   "dependencies": {
     "@avalabs/eerc-sdk": "^1.0.2",
+    "@dicebear/collection": "9.4.3",
+    "@dicebear/core": "9.4.3",
     "@hookform/resolvers": "^5.4.0",
     "@tanstack/react-query": "^5.101.2",
     "@types/qrcode": "^1.5.6",
