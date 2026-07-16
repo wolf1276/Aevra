@@ -57,7 +57,7 @@ jobs:
         run: cd out && zip -rq ../aevra-extension.zip .
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: aevra-extension
           path: aevra-extension.zip
