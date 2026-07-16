@@ -12,7 +12,7 @@ export function Toast() {
           initial={{ opacity: 0, y: 4 }}
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0 }}
-          className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 border border-[#111] bg-white px-3 py-1 text-[9px] font-bold tracking-[0.5px] uppercase"
+          className="absolute bottom-3 left-1/2 z-20 -translate-x-1/2 rounded-[20px] bg-[#111] px-3 py-[6px] text-[9px] font-semibold text-white shadow-[0_4px_16px_rgba(0,0,0,0.2)]"
         >
           {toast}
         </motion.div>

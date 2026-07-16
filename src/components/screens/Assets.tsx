@@ -130,7 +130,7 @@ export function TokenDetails({ symbol }: { symbol: string }) {
     <div className="flex flex-1 flex-col">
       <div className="flex items-center gap-2 px-4 py-[14px]">
         <button
-          className="cursor-pointer text-[11px] text-[#777]"
+          className="cursor-pointer text-[13px] text-[#888]"
           onClick={() => nav({ name: "assets" })}
         >
           ←

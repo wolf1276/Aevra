@@ -14,17 +14,21 @@ export function BottomNav({ active }: { active: string }) {
     <>
       <Divider />
       <div className="flex shrink-0 justify-around py-[10px]">
-        {TABS.map((t) => (
-          <button
-            key={t.label}
-            onClick={() => navigate(t.screen)}
-            className={`cursor-pointer text-[9px] tracking-[0.5px] uppercase ${
-              active === t.screen.name ? "font-bold text-[#111]" : "text-[#777]"
-            }`}
-          >
-            {t.label}
-          </button>
-        ))}
+        {TABS.map((t) => {
+          const isActive = active === t.screen.name;
+          return (
+            <button
+              key={t.label}
+              onClick={() => navigate(t.screen)}
+              className={`flex cursor-pointer flex-col items-center gap-[3px] text-[9px] font-medium ${
+                isActive ? "text-[#111]" : "text-[#999]"
+              }`}
+            >
+              <div className={`h-5 w-5 rounded-[6px] ${isActive ? "bg-[#111]" : "bg-[#f0f0f0]"}`} />
+              {t.label}
+            </button>
+          );
+        })}
       </div>
     </>
   );

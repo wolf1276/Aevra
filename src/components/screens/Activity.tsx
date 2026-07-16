@@ -116,7 +116,7 @@ export function ActivityRow({ tx, expandable }: { tx: TxRecord; expandable?: boo
               {!tx.revealed && (
                 <button
                   onClick={reveal}
-                  className="flex-1 cursor-pointer border border-[#111] py-1 text-[9px] font-bold uppercase"
+                  className="flex-1 cursor-pointer rounded-[10px] border border-[#ccc] py-1 text-[9px] font-bold uppercase"
                 >
                   {busy === "reveal" ? "Revealing…" : "Reveal Amount"}
                 </button>

@@ -9,7 +9,8 @@ import { Box, Btn, Circ, Divider, Hd, Header, Lbl, Pill, shortAddr } from "@/com
 import type { ShieldProgress } from "@/lib/providers/types";
 import { shieldProvider, useWallet } from "@/store/wallet";
 
-const inputCls = "w-full border border-[#111] p-3 text-[11px] outline-none placeholder:text-[#999]";
+const inputCls =
+  "w-full rounded-[12px] border border-[#e4e4e4] p-3 text-[12px] outline-none placeholder:text-[#aaa]";
 
 // User-facing labels for internal protocol steps
 const STEP_LABEL: Record<ShieldProgress["step"], string> = {
@@ -57,7 +58,7 @@ export function Send({ symbol }: { symbol?: string }) {
         </div>
         <div>
           <Lbl>Amount</Lbl>
-          <div className="mt-1 flex items-center border border-[#111] p-3">
+          <div className="mt-1 flex items-center rounded-[12px] border border-[#e4e4e4] p-3">
             <input
               className="w-full text-[18px] font-bold outline-none"
               placeholder="0.00"
@@ -140,9 +141,9 @@ export function SendReview() {
         {progress && (
           <div className="mt-2">
             <Lbl className="mb-1">{STEP_LABEL[progress.step]}</Lbl>
-            <div className="h-[6px] w-full border border-[#111]">
+            <div className="h-[6px] w-full rounded-full bg-[#eee]">
               <div
-                className="h-full bg-[#111] transition-all"
+                className="h-full rounded-full bg-[#111] transition-all"
                 style={{ width: `${progress.percent}%` }}
               />
             </div>
@@ -204,7 +205,11 @@ export function Receive() {
         <Lbl>Your wallet address</Lbl>
         {qr && (
           /* eslint-disable-next-line @next/next/no-img-element -- data URI */
-          <img className="mt-3 h-[140px] w-[140px] border border-[#111]" alt="QR code" src={qr} />
+          <img
+            className="mt-3 h-[140px] w-[140px] rounded-[12px] border border-[#e4e4e4]"
+            alt="QR code"
+            src={qr}
+          />
         )}
         <Box className="mt-3 w-full p-3 text-[10px] break-all">{address}</Box>
         <Btn

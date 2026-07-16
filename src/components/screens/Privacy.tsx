@@ -38,7 +38,7 @@ export function Privacy() {
           <Lbl>Viewer key for {account?.name}</Lbl>
           <div className="mt-1 text-[10px] break-all">{viewerKey}</div>
           <button
-            className="mt-2 cursor-pointer border border-[#111] px-3 py-1 text-[9px] font-bold uppercase"
+            className="mt-2 cursor-pointer rounded-[10px] border border-[#ccc] px-3 py-1 text-[9px] font-bold uppercase"
             onClick={() => {
               void navigator.clipboard.writeText(viewerKey);
               s.showToast("Viewer key copied");
@@ -61,7 +61,7 @@ export function Privacy() {
           </div>
         ))}
         <button
-          className="mt-3 w-full cursor-pointer border border-[#111] py-2 text-[10px] font-bold"
+          className="mt-3 w-full cursor-pointer rounded-[12px] border border-[#ccc] py-2 text-[10px] font-bold"
           onClick={() => s.navigate({ name: "backup" })}
         >
           Recovery Phrase →
