@@ -6,7 +6,7 @@ import path from "node:path";
 const OUT = "out";
 // ~41MB of that is ZK circuit artifacts (public/circuits) required for local proving.
 const MAX_ZIP_INPUT_BYTES = 60 * 1024 * 1024; // CWS hard limit is ~2GB; keep ours sane
-const ALLOWED_PERMISSIONS = ["storage"];
+const ALLOWED_PERMISSIONS = ["storage", "alarms"];
 
 const failures = [];
 const check = (ok, msg) => (ok ? console.log(`  ✓ ${msg}`) : failures.push(msg));
