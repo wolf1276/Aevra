@@ -43,3 +43,7 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 aevra-extension.zip
+
+# playwright
+/test-results
+/playwright-report
