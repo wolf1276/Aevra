@@ -1,23 +1,23 @@
 "use client";
 // 02 · Assets Screen + 03 · Token Details
+// One portfolio — public + confidential balances are merged per token.
 import { useState } from "react";
 
 import { BottomNav } from "@/components/BottomNav";
-import { ActivityRow } from "@/components/screens/Activity";
-import { Box, Btn, Circ, Divider, DividerL, Hd, Lbl, Ph, Pill } from "@/components/ui";
-import { fmtUnits, fmtUsd } from "@/lib/format";
+import { ActivityRow, isInternalOp } from "@/components/screens/Activity";
+import { Box, Btn, Circ, Divider, DividerL, Hd, Lbl } from "@/components/ui";
+import { fmtUsd } from "@/lib/format";
 import { useWallet } from "@/store/wallet";
 
 interface AssetRowProps {
   symbol: string;
   sub: string;
-  badge: "Public" | "Shielded";
   usd: string;
   onOpen: () => void;
   menu: { label: string; action: () => void }[];
 }
 
-function AssetRow({ symbol, sub, badge, usd, onOpen, menu }: AssetRowProps) {
+function AssetRow({ symbol, sub, usd, onOpen, menu }: AssetRowProps) {
   const [open, setOpen] = useState(false);
   return (
     <div className="relative">
@@ -32,8 +32,7 @@ function AssetRow({ symbol, sub, badge, usd, onOpen, menu }: AssetRowProps) {
             <Lbl>{sub}</Lbl>
           </div>
         </button>
-        <Pill className="text-[8px]">{badge}</Pill>
-        <div className="w-10 text-right text-[11px]">{usd}</div>
+        <div className="w-14 text-right text-[11px]">{usd}</div>
         <button className="cursor-pointer text-[14px]" onClick={() => setOpen((v) => !v)}>
           ⋮
         </button>
@@ -58,9 +57,38 @@ function AssetRow({ symbol, sub, badge, usd, onOpen, menu }: AssetRowProps) {
   );
 }
 
+/** Merge public + confidential balances into one row per token. */
+export function useMergedAssets() {
+  const s = useWallet();
+  const rows = new Map<string, { units: number; usd: number; decimals: number }>();
+  rows.set("AVAX", {
+    units: Number(s.nativeBalance) / 1e18,
+    usd: (Number(s.nativeBalance) / 1e18) * s.avaxPrice,
+    decimals: 18,
+  });
+  for (const t of s.tokens) {
+    rows.set(t.symbol, {
+      units: Number(t.balance) / 10 ** t.decimals,
+      usd: t.usdValue,
+      decimals: t.decimals,
+    });
+  }
+  for (const b of s.shielded) {
+    const prev = rows.get(b.underlyingSymbol);
+    const units = Number(b.balance) / 10 ** b.decimals;
+    rows.set(b.underlyingSymbol, {
+      units: (prev?.units ?? 0) + units,
+      usd: (prev?.usd ?? 0) + b.usdValue,
+      decimals: prev?.decimals ?? b.decimals,
+    });
+  }
+  return [...rows.entries()].map(([symbol, r]) => ({ symbol, ...r }));
+}
+
 export function Assets() {
   const s = useWallet();
   const nav = s.navigate;
+  const assets = useMergedAssets();
 
   return (
     <div className="flex flex-1 flex-col">
@@ -68,86 +96,35 @@ export function Assets() {
         <Hd>Assets</Hd>
       </div>
       <Divider />
-      <div className="flex flex-1 flex-col overflow-y-auto">
-        <div className="px-4 pt-[10px]">
-          <Lbl>Public Assets</Lbl>
-        </div>
-        <div className="flex flex-col gap-2 px-4 py-2">
+      <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-3">
+        {assets.map((a) => (
           <AssetRow
-            symbol="AVAX"
-            sub={`${fmtUnits(s.nativeBalance, 18)} AVAX`}
-            badge="Public"
-            usd={fmtUsd((Number(s.nativeBalance) / 1e18) * s.avaxPrice)}
-            onOpen={() => nav({ name: "token", symbol: "AVAX", shielded: false })}
+            key={a.symbol}
+            symbol={a.symbol}
+            sub={`${a.units.toFixed(4)} ${a.symbol}`}
+            usd={fmtUsd(a.usd)}
+            onOpen={() => nav({ name: "token", symbol: a.symbol })}
             menu={[
-              { label: "Send", action: () => nav({ name: "send", symbol: "AVAX" }) },
-              { label: "Shield", action: () => nav({ name: "shield", symbol: "AVAX" }) },
+              { label: "Send", action: () => nav({ name: "send", symbol: a.symbol }) },
               { label: "Receive", action: () => nav({ name: "receive" }) },
             ]}
           />
-          {s.tokens.map((t) => (
-            <AssetRow
-              key={t.symbol}
-              symbol={t.symbol}
-              sub={`${fmtUnits(t.balance, t.decimals)} ${t.symbol}`}
-              badge="Public"
-              usd={fmtUsd(t.usdValue)}
-              onOpen={() => nav({ name: "token", symbol: t.symbol, shielded: false })}
-              menu={[
-                { label: "Shield", action: () => nav({ name: "shield", symbol: t.symbol }) },
-                { label: "Receive", action: () => nav({ name: "receive" }) },
-              ]}
-            />
-          ))}
-        </div>
-        <DividerL />
-        <div className="px-4 pt-[10px]">
-          <Lbl>Shielded Assets</Lbl>
-        </div>
-        <div className="flex flex-1 flex-col gap-2 px-4 py-2">
-          {s.shielded.map((b) => (
-            <AssetRow
-              key={b.symbol}
-              symbol={b.symbol}
-              sub="•••• shielded"
-              badge="Shielded"
-              usd="••"
-              onOpen={() => nav({ name: "token", symbol: b.symbol, shielded: true })}
-              menu={[
-                { label: "Send", action: () => nav({ name: "send", symbol: b.symbol }) },
-                { label: "Unshield", action: () => nav({ name: "unshield", symbol: b.symbol }) },
-              ]}
-            />
-          ))}
-          <Ph className="cursor-pointer p-4 text-center">
-            <button className="w-full cursor-pointer" onClick={() => nav({ name: "shield" })}>
-              <Lbl>+ Shield a public asset</Lbl>
-            </button>
-          </Ph>
-        </div>
+        ))}
       </div>
       <BottomNav active="assets" />
     </div>
   );
 }
 
-export function TokenDetails({ symbol, shielded }: { symbol: string; shielded: boolean }) {
+export function TokenDetails({ symbol }: { symbol: string }) {
   const s = useWallet();
   const nav = s.navigate;
+  const asset = useMergedAssets().find((a) => a.symbol === symbol);
 
-  const shieldedBal = s.shielded.find((b) => b.symbol === symbol);
-  const token = s.tokens.find((t) => t.symbol === symbol);
-  const balanceLabel = shielded
-    ? `•••• ${symbol}`
-    : symbol === "AVAX"
-      ? `${fmtUnits(s.nativeBalance, 18)} AVAX`
-      : `${fmtUnits(token?.balance ?? 0n, token?.decimals ?? 18)} ${symbol}`;
-
-  const history = shielded
-    ? s.shieldedActivity.filter((t) => t.symbol === symbol || `e${t.symbol}` === symbol)
-    : s.history.filter((t) => t.symbol === symbol);
-
-  const underlying = shielded ? (shieldedBal?.underlyingSymbol ?? symbol.slice(1)) : symbol;
+  const history = [...s.shieldedActivity, ...s.history]
+    .filter((t) => !isInternalOp(t))
+    .filter((t) => t.symbol === symbol || t.symbol === `e${symbol}`)
+    .sort((a, b) => b.timestamp - a.timestamp);
 
   return (
     <div className="flex flex-1 flex-col">
@@ -163,22 +140,14 @@ export function TokenDetails({ symbol, shielded }: { symbol: string; shielded: b
       <Divider />
       <div className="p-[18px] text-center">
         <Circ size={40} ph className="mx-auto mb-2" />
-        <div className="text-[22px] font-bold">{balanceLabel}</div>
-        <Pill className="mt-[6px] inline-block">{shielded ? "Shielded" : "Public"}</Pill>
+        <div className="text-[22px] font-bold">
+          {(asset?.units ?? 0).toFixed(4)} {symbol}
+        </div>
+        <Lbl className="mt-[6px]">{fmtUsd(asset?.usd ?? 0)}</Lbl>
       </div>
       <DividerL />
       <div className="flex gap-2 px-4 py-3">
-        <Btn className="flex-1" onClick={() => nav({ name: "shield", symbol: underlying })}>
-          Shield
-        </Btn>
-        <Btn
-          className="flex-1"
-          disabled={!shielded && !s.shielded.some((b) => b.underlyingSymbol === symbol)}
-          onClick={() => nav({ name: "unshield", symbol: shielded ? symbol : `e${symbol}` })}
-        >
-          Unshield
-        </Btn>
-        <Btn className="flex-1" onClick={() => nav({ name: "send", symbol })}>
+        <Btn primary className="flex-1" onClick={() => nav({ name: "send", symbol })}>
           Send
         </Btn>
         <Btn className="flex-1" onClick={() => nav({ name: "receive" })}>

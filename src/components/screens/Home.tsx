@@ -12,13 +12,14 @@ export function Home() {
   const s = useWallet();
   const [menuOpen, setMenuOpen] = useState(false);
   const [netOpen, setNetOpen] = useState(false);
-  const [swapNote, setSwapNote] = useState(false);
   const account = s.accounts[s.activeIndex];
 
-  const publicUsd =
-    (Number(s.nativeBalance) / 1e18) * s.avaxPrice + s.tokens.reduce((a, t) => a + t.usdValue, 0);
-  const shieldedUsd = s.shielded.reduce((a, b) => a + b.usdValue, 0);
+  const totalUsd =
+    (Number(s.nativeBalance) / 1e18) * s.avaxPrice +
+    s.tokens.reduce((a, t) => a + t.usdValue, 0) +
+    s.shielded.reduce((a, b) => a + b.usdValue, 0);
   const recent = [...s.shieldedActivity, ...s.history]
+    .filter((tx) => tx.type !== "shield" && tx.type !== "unshield")
     .sort((a, b) => b.timestamp - a.timestamp)
     .slice(0, 3);
 
@@ -86,44 +87,23 @@ export function Home() {
 
       {/* portfolio balance */}
       <div className="p-4 text-center">
-        <Lbl>Portfolio Balance</Lbl>
-        <div className="mt-1 mb-[10px] text-[26px] font-bold">
-          {fmtUsd(publicUsd + shieldedUsd)}
-        </div>
-        <div className="flex gap-[10px]">
-          <Box className="flex-1 p-2">
-            <Lbl>Public</Lbl>
-            <div className="text-[13px] font-bold">{fmtUsd(publicUsd)}</div>
-          </Box>
-          <Box className="flex-1 p-2">
-            <Lbl>Shielded</Lbl>
-            <div className="text-[13px] font-bold">{fmtUsd(shieldedUsd)}</div>
-            <Lbl className="mt-[2px]">● Privacy Active</Lbl>
-          </Box>
-        </div>
+        <Lbl>Portfolio</Lbl>
+        <div className="mt-1 mb-[10px] text-[26px] font-bold">{fmtUsd(totalUsd)}</div>
+        <button className="cursor-pointer" onClick={() => s.navigate({ name: "privacy" })}>
+          <Pill>Protected ✓</Pill>
+        </button>
       </div>
       <DividerL />
 
       {/* actions */}
       <div className="flex gap-2 px-4 py-3">
-        <Btn className="flex-1" onClick={() => s.navigate({ name: "shield" })}>
-          Shield
-        </Btn>
-        <Btn className="flex-1" onClick={() => s.navigate({ name: "send" })}>
+        <Btn primary className="flex-1" onClick={() => s.navigate({ name: "send" })}>
           Send
         </Btn>
         <Btn className="flex-1" onClick={() => s.navigate({ name: "receive" })}>
           Receive
         </Btn>
-        <Btn className="flex-1" onClick={() => setSwapNote(true)}>
-          Swap
-        </Btn>
       </div>
-      {swapNote && (
-        <div className="px-4 pb-2">
-          <Lbl>Swap is not available on {NETWORKS[s.networkId].name} yet</Lbl>
-        </div>
-      )}
       <DividerL />
 
       {/* recent activity */}

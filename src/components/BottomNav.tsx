@@ -5,7 +5,6 @@ const TABS: { label: string; screen: Screen }[] = [
   { label: "Home", screen: { name: "home" } },
   { label: "Assets", screen: { name: "assets" } },
   { label: "Activity", screen: { name: "activity" } },
-  { label: "Privacy", screen: { name: "privacy" } },
   { label: "Settings", screen: { name: "settings" } },
 ];
 

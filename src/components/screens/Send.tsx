@@ -1,38 +1,33 @@
 "use client";
 // 04 · Send Flow + 04b · Review & Confirm (+ success)
-import { formatEther, isAddress, parseEther } from "ethers";
-import { useState } from "react";
+// Every transfer is confidential — the provider handles conversion internally.
+import { isAddress } from "ethers";
+import QRCode from "qrcode";
+import { useEffect, useState } from "react";
 
 import { Box, Btn, Circ, Divider, Hd, Header, Lbl, Pill, shortAddr } from "@/components/ui";
-import { parseUnits } from "@/lib/format";
 import type { ShieldProgress } from "@/lib/providers/types";
-import {
-  NETWORKS,
-  shieldProvider,
-  transactionProvider,
-  useWallet,
-  walletProvider,
-} from "@/store/wallet";
+import { shieldProvider, useWallet } from "@/store/wallet";
 
 const inputCls = "w-full border border-[#111] p-3 text-[11px] outline-none placeholder:text-[#999]";
 
+// User-facing labels for internal protocol steps
+const STEP_LABEL: Record<ShieldProgress["step"], string> = {
+  preparing: "Preparing Secure Transfer…",
+  "generating-proof": "Confirming…",
+  submitting: "Confirming…",
+  done: "Completed",
+};
+
 export function Send({ symbol }: { symbol?: string }) {
   const s = useWallet();
-  const account = s.accounts[s.activeIndex];
-  const isShieldedToken = !!symbol && s.shielded.some((b) => b.symbol === symbol);
+  // display symbols never carry the internal "e" prefix
+  const sendSymbol = (symbol ?? "USDC").replace(/^e/, "");
   const [to, setTo] = useState("");
   const [amount, setAmount] = useState("");
-  const [mode, setMode] = useState<"public" | "shielded">(
-    isShieldedToken ? "shielded" : s.defaultSendMode,
-  );
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
 
-  const sendSymbol = symbol ?? "AVAX";
-  const displaySymbol =
-    mode === "shielded" && !sendSymbol.startsWith("e") ? sendSymbol : sendSymbol;
-
-  const review = async () => {
+  const review = () => {
     setError("");
     if (!isAddress(to)) {
       setError("Invalid recipient address");
@@ -43,24 +38,8 @@ export function Send({ symbol }: { symbol?: string }) {
       setError("Enter an amount");
       return;
     }
-    setBusy(true);
-    try {
-      let fee = "0.001";
-      if (mode === "public") {
-        const est = await transactionProvider.estimateGas(
-          account.address,
-          { to, value: parseEther(amount) },
-          NETWORKS[s.networkId],
-        );
-        fee = Number(formatEther(est.fee)).toFixed(6);
-      }
-      s.setPendingSend({ to, amount, symbol: displaySymbol, mode, fee });
-      s.navigate({ name: "send-review" });
-    } catch (e) {
-      setError(e instanceof Error ? e.message.slice(0, 80) : "Gas estimation failed");
-    } finally {
-      setBusy(false);
-    }
+    s.setPendingSend({ to, amount, symbol: sendSymbol, fee: "~0.001" });
+    s.navigate({ name: "send-review" });
   };
 
   return (
@@ -86,28 +65,7 @@ export function Send({ symbol }: { symbol?: string }) {
               value={amount}
               onChange={(e) => setAmount(e.target.value.replace(/[^0-9.]/g, ""))}
             />
-            <Lbl>{displaySymbol}</Lbl>
-          </div>
-        </div>
-        <div>
-          <Lbl className="mb-[6px]">Privacy Toggle</Lbl>
-          <div className="flex gap-2">
-            <button
-              onClick={() => setMode("public")}
-              className={`flex-1 cursor-pointer border border-[#111] p-[10px] text-center text-[11px] ${
-                mode === "public" ? "bg-[#111] text-white" : ""
-              }`}
-            >
-              {mode === "public" ? "●" : "○"} Public
-            </button>
-            <button
-              onClick={() => setMode("shielded")}
-              className={`flex-1 cursor-pointer border border-[#111] p-[10px] text-center text-[11px] ${
-                mode === "shielded" ? "bg-[#111] text-white" : ""
-              }`}
-            >
-              {mode === "shielded" ? "●" : "○"} Shielded
-            </button>
+            <Lbl>{sendSymbol}</Lbl>
           </div>
         </div>
         {error && <Lbl className="text-[#111]">{error}</Lbl>}
@@ -115,8 +73,8 @@ export function Send({ symbol }: { symbol?: string }) {
       <div className="flex-1" />
       <Divider />
       <div className="p-4">
-        <Btn primary className="w-full" disabled={busy} onClick={review}>
-          {busy ? "Estimating…" : "Review"}
+        <Btn primary className="w-full" onClick={review}>
+          Review
         </Btn>
       </div>
     </div>
@@ -138,29 +96,13 @@ export function SendReview() {
     setBusy(true);
     setError("");
     try {
-      let txHash: string;
-      let proofId: string | undefined;
-      if (p.mode === "public") {
-        txHash = await walletProvider.sendTransaction(
-          s.activeIndex,
-          { to: p.to, value: parseEther(p.amount) },
-          NETWORKS[s.networkId],
-        );
-      } else {
-        // shielded (confidential) transfer — mocked eERC layer
-        const eSymbol = p.symbol.startsWith("e") ? p.symbol : `e${p.symbol}`;
-        const bal = s.shielded.find((b) => b.symbol === eSymbol);
-        if (!bal) throw new Error(`No shielded ${p.symbol} balance — shield first`);
-        const result = await shieldProvider.shieldedSend(
-          account.address,
-          p.symbol,
-          parseUnits(p.amount, bal.decimals),
-          p.to,
-          setProgress,
-        );
-        txHash = result.txHash;
-        proofId = result.proofId;
-      }
+      const { txHash, proofId } = await shieldProvider.send(
+        account.address,
+        p.symbol,
+        p.amount,
+        p.to,
+        setProgress,
+      );
       s.setLastResult({ txHash, amount: p.amount, symbol: p.symbol, proofId });
       s.navigate({ name: "send-success" }); // before clearing pendingSend — see effect above
       s.setPendingSend(null);
@@ -174,7 +116,7 @@ export function SendReview() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <Header title="Review Transfer" onBack={() => s.navigate({ name: "send" })} />
+      <Header title="Review" onBack={() => s.navigate({ name: "send" })} />
       <div className="flex flex-col gap-[10px] p-4">
         <div className="flex justify-between">
           <Lbl>To</Lbl>
@@ -187,25 +129,17 @@ export function SendReview() {
           </div>
         </div>
         <div className="flex items-center justify-between">
-          <Lbl>Mode</Lbl>
-          <Pill>{p.mode === "shielded" ? "Shielded" : "Public"}</Pill>
+          <Lbl>Privacy</Lbl>
+          <Pill>Protected</Pill>
         </div>
         <div className="h-px w-full bg-[#bbb]" />
         <div className="flex justify-between">
           <Lbl>Network Fee</Lbl>
           <div className="text-[11px]">{p.fee} AVAX</div>
         </div>
-        {p.mode === "shielded" && (
-          <div className="flex justify-between">
-            <Lbl>Proof Generation</Lbl>
-            <div className="text-[11px]">~8s</div>
-          </div>
-        )}
         {progress && (
           <div className="mt-2">
-            <Lbl className="mb-1">
-              {progress.step.replace("-", " ")} · {progress.percent}%
-            </Lbl>
+            <Lbl className="mb-1">{STEP_LABEL[progress.step]}</Lbl>
             <div className="h-[6px] w-full border border-[#111]">
               <div
                 className="h-full bg-[#111] transition-all"
@@ -223,7 +157,7 @@ export function SendReview() {
           Cancel
         </Btn>
         <Btn primary className="flex-[2]" disabled={busy} onClick={confirm}>
-          {busy ? "Signing…" : "Confirm & Sign"}
+          {busy ? "Sending…" : "Send"}
         </Btn>
       </div>
     </div>
@@ -238,11 +172,10 @@ export function SendSuccess() {
       <Circ size={64} className="mb-4 text-[24px]">
         ✓
       </Circ>
-      <Hd className="text-[15px]">Transfer Sent</Hd>
+      <Hd className="text-[15px]">Completed</Hd>
       <Lbl className="mt-[6px]">
-        {r ? `${r.amount} ${r.symbol} sent successfully` : "Transaction submitted"}
+        {r ? `${r.amount} ${r.symbol} sent privately` : "Transaction submitted"}
       </Lbl>
-      {r?.proofId && <Lbl className="mt-1">Proof: {r.proofId}</Lbl>}
       <Btn primary className="mt-6 w-[200px]" onClick={() => s.navigate({ name: "home" })}>
         Done
       </Btn>
@@ -257,31 +190,34 @@ export function Receive() {
   const s = useWallet();
   const account = s.accounts[s.activeIndex];
   const [copied, setCopied] = useState(false);
+  const [qr, setQr] = useState("");
+  const address = account?.address ?? "";
+
+  useEffect(() => {
+    if (address) void QRCode.toDataURL(address, { width: 140, margin: 1 }).then(setQr);
+  }, [address]);
+
   return (
     <div className="flex flex-1 flex-col">
       <Header title="Receive" onBack={() => s.navigate({ name: "home" })} />
       <div className="flex flex-1 flex-col items-center p-6 text-center">
-        <Lbl>Your {NETWORKS[s.networkId].name} address</Lbl>
-        <Box className="mt-3 w-full p-3 text-[10px] break-all">{account?.address}</Box>
+        <Lbl>Your wallet address</Lbl>
+        {qr && (
+          /* eslint-disable-next-line @next/next/no-img-element -- data URI */
+          <img className="mt-3 h-[140px] w-[140px] border border-[#111]" alt="QR code" src={qr} />
+        )}
+        <Box className="mt-3 w-full p-3 text-[10px] break-all">{address}</Box>
         <Btn
           primary
           className="mt-4 w-[200px]"
           onClick={() => {
-            void navigator.clipboard.writeText(account?.address ?? "");
+            void navigator.clipboard.writeText(address);
             setCopied(true);
             setTimeout(() => setCopied(false), 1500);
           }}
         >
           {copied ? "Copied ✓" : "Copy Address"}
         </Btn>
-        <a
-          href={`${NETWORKS[s.networkId].explorerUrl}/address/${account?.address}`}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-4"
-        >
-          <Lbl>View on explorer →</Lbl>
-        </a>
       </div>
     </div>
   );

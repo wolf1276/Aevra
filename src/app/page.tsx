@@ -15,7 +15,6 @@ import {
 import { Privacy } from "@/components/screens/Privacy";
 import { Receive, Send, SendReview, SendSuccess } from "@/components/screens/Send";
 import { Settings } from "@/components/screens/Settings";
-import { Shield, ShieldSuccess, Unshield } from "@/components/screens/Shield";
 import { type Screen, useWallet, walletProvider } from "@/store/wallet";
 
 function render(screen: Screen) {
@@ -33,7 +32,7 @@ function render(screen: Screen) {
     case "assets":
       return <Assets />;
     case "token":
-      return <TokenDetails symbol={screen.symbol} shielded={screen.shielded} />;
+      return <TokenDetails symbol={screen.symbol} />;
     case "send":
       return <Send symbol={screen.symbol} />;
     case "send-review":
@@ -42,14 +41,6 @@ function render(screen: Screen) {
       return <SendSuccess />;
     case "receive":
       return <Receive />;
-    case "shield":
-      return <Shield symbol={screen.symbol} />;
-    case "shield-success":
-      return <ShieldSuccess mode="shield" />;
-    case "unshield":
-      return <Unshield symbol={screen.symbol} />;
-    case "unshield-success":
-      return <ShieldSuccess mode="unshield" />;
     case "activity":
       return <Activity />;
     case "privacy":

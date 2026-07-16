@@ -17,7 +17,6 @@ export function Settings() {
   const [accountsOpen, setAccountsOpen] = useState(false);
   const [pwOpen, setPwOpen] = useState(false);
   const [lockOpen, setLockOpen] = useState(false);
-  const [keysOpen, setKeysOpen] = useState(false);
   const [pwCurrent, setPwCurrent] = useState("");
   const [pwNext, setPwNext] = useState("");
   const [pwMsg, setPwMsg] = useState("");
@@ -37,9 +36,6 @@ export function Settings() {
       setPwMsg("Current password incorrect");
     }
   };
-
-  // deterministic mock viewer key derived from the address
-  const viewerKey = account ? `vk_${account.address.slice(2, 18).toLowerCase()}` : "";
 
   return (
     <div className="flex flex-1 flex-col">
@@ -75,8 +71,12 @@ export function Settings() {
             </button>
           </Box>
         )}
+        <button className={rowCls} onClick={() => s.navigate({ name: "privacy" })}>
+          <div>Privacy &amp; Security</div>
+          <Lbl>›</Lbl>
+        </button>
         <button className={rowCls} onClick={() => s.navigate({ name: "backup" })}>
-          <div>Backup Phrase</div>
+          <div>Recovery Phrase</div>
           <Lbl>›</Lbl>
         </button>
 
@@ -146,36 +146,6 @@ export function Settings() {
               </button>
             ))}
           </div>
-        )}
-
-        <Lbl className="pt-[10px] pb-1">Privacy</Lbl>
-        <button
-          className={rowCls}
-          onClick={() =>
-            s.setSetting(
-              "defaultSendMode",
-              s.defaultSendMode === "shielded" ? "public" : "shielded",
-            )
-          }
-        >
-          <div>Default Send Mode</div>
-          <Lbl className="capitalize">{s.defaultSendMode} ›</Lbl>
-        </button>
-        <button className={rowCls} onClick={() => setKeysOpen((v) => !v)}>
-          <div>Manage Viewer Keys</div>
-          <Lbl>›</Lbl>
-        </button>
-        {keysOpen && (
-          <Box className="my-1 p-3">
-            <Lbl>Viewer key for {account?.name}</Lbl>
-            <div className="mt-1 text-[10px] break-all">{viewerKey}</div>
-            <button
-              className="mt-2 cursor-pointer border border-[#111] px-3 py-1 text-[9px] font-bold uppercase"
-              onClick={() => void navigator.clipboard.writeText(viewerKey)}
-            >
-              Copy
-            </button>
-          </Box>
         )}
 
         <Lbl className="pt-[10px] pb-1">Developer</Lbl>
