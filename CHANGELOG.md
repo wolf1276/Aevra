@@ -3,7 +3,7 @@
 All notable changes to Aevra are documented here.
 Format: [Keep a Changelog](https://keepachangelog.com/), versioning: [SemVer](https://semver.org/).
 
-## [Unreleased]
+## [1.0.0] - 2026-07-17
 
 ### Added
 
