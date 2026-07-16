@@ -2,9 +2,10 @@
 // 01 · Home Dashboard
 import { useState } from "react";
 
+import { AccountSwitcher } from "@/components/AccountSwitcher";
 import { BottomNav } from "@/components/BottomNav";
 import { ActivityRow } from "@/components/screens/Activity";
-import { Box, Btn, Circ, Divider, DividerL, Hd, Lbl, Pill } from "@/components/ui";
+import { Box, Btn, Circ, Divider, DividerL, Hd, Lbl, Pill, shortAddr } from "@/components/ui";
 import { fmtUsd } from "@/lib/format";
 import { NETWORKS, useWallet } from "@/store/wallet";
 
@@ -12,12 +13,29 @@ export function Home() {
   const s = useWallet();
   const [menuOpen, setMenuOpen] = useState(false);
   const [netOpen, setNetOpen] = useState(false);
+  const [addrCopied, setAddrCopied] = useState(false);
   const account = s.accounts[s.activeIndex];
+
+  const copyAddress = () => {
+    if (!account) return;
+    void navigator.clipboard.writeText(account.address);
+    setAddrCopied(true);
+    setTimeout(() => setAddrCopied(false), 1500);
+  };
 
   const totalUsd =
     (Number(s.nativeBalance) / 1e18) * s.avaxPrice +
     s.tokens.reduce((a, t) => a + t.usdValue, 0) +
     s.shielded.reduce((a, b) => a + b.usdValue, 0);
+
+  // ponytail: fixed 0.01 AVAX gas-floor threshold, make configurable if other networks need it
+  const needsFujiFaucet = s.networkId === "fuji" && Number(s.nativeBalance) / 1e18 < 0.01;
+  const requestTestAvax = () => {
+    window.open("https://core.app/tools/testnet-faucet/?subnet=c&token=c", "_blank");
+    if (account) void navigator.clipboard.writeText(account.address);
+    s.showToast("Wallet address copied. Paste it into the faucet.");
+  };
+
   const recent = [...s.shieldedActivity, ...s.history]
     .filter((tx) => tx.type !== "shield" && tx.type !== "unshield")
     .sort((a, b) => b.timestamp - a.timestamp)
@@ -32,40 +50,23 @@ export function Home() {
           onClick={() => setMenuOpen((v) => !v)}
         >
           <Circ size={24} />
-          <div className="text-[11px] font-bold">{account?.name ?? "Wallet"} ▾</div>
-        </button>
-        <Pill onClick={() => setNetOpen((v) => !v)}>{NETWORKS[s.networkId].name} ▾</Pill>
-        {menuOpen && (
-          <Box className="absolute top-[48px] left-4 z-10 w-[180px] bg-white">
-            {s.accounts.map((a) => (
-              <button
-                key={a.index}
-                className="block w-full cursor-pointer border-b border-[#eee] px-3 py-2 text-left text-[11px]"
-                onClick={() => {
-                  s.setActiveIndex(a.index);
-                  setMenuOpen(false);
+          <div className="flex flex-col items-start">
+            <div className="text-[11px] font-bold">{account?.name ?? "Wallet"} ▾</div>
+            {account && (
+              <div
+                className="cursor-pointer text-[9px] text-[#777] hover:text-[#111]"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  copyAddress();
                 }}
               >
-                {a.name} {a.index === s.activeIndex && "✓"}
-              </button>
-            ))}
-            <button
-              className="block w-full cursor-pointer border-b border-[#eee] px-3 py-2 text-left text-[11px]"
-              onClick={() => {
-                void s.addAccount();
-                setMenuOpen(false);
-              }}
-            >
-              + Add Account
-            </button>
-            <button
-              className="block w-full cursor-pointer px-3 py-2 text-left text-[11px]"
-              onClick={() => s.lock()}
-            >
-              Lock Wallet
-            </button>
-          </Box>
-        )}
+                {addrCopied ? "Address Copied" : `${shortAddr(account.address)} ⧉`}
+              </div>
+            )}
+          </div>
+        </button>
+        <Pill onClick={() => setNetOpen((v) => !v)}>{NETWORKS[s.networkId].name} ▾</Pill>
+        {menuOpen && <AccountSwitcher onClose={() => setMenuOpen(false)} />}
         {netOpen && (
           <Box className="absolute top-[48px] right-4 z-10 w-[120px] bg-white">
             {(["fuji", "mainnet"] as const).map((id) => (
@@ -94,6 +95,23 @@ export function Home() {
         </button>
       </div>
       <DividerL />
+
+      {needsFujiFaucet && (
+        <>
+          <div className="p-4">
+            <Box className="p-3">
+              <Hd>Get Test AVAX</Hd>
+              <Lbl className="mt-1 block">
+                Your wallet needs Fuji test AVAX to start sending transactions.
+              </Lbl>
+              <Btn primary className="mt-2 w-full" onClick={requestTestAvax}>
+                Request Test AVAX
+              </Btn>
+            </Box>
+          </div>
+          <DividerL />
+        </>
+      )}
 
       {/* actions */}
       <div className="flex gap-2 px-4 py-3">
