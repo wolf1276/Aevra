@@ -2,17 +2,27 @@
   "name": "aevra",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.13.1",
   "scripts": {
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
     "lint": "eslint .",
     "build:ext": "node scripts/build-extension.mjs",
+    "build:prod": "NODE_ENV=production node scripts/build-extension.mjs",
     "lint:fix": "eslint . --fix",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "package": "pnpm build:ext && cd out && zip -r ../aevra-extension.zip .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "validate": "node scripts/validate-build.mjs",
+    "webstore-check": "node scripts/validate-build.mjs",
+    "audit:deps": "pnpm audit --audit-level moderate",
+    "package": "pnpm build:prod && pnpm validate && cd out && zip -rq ../aevra-extension.zip .",
+    "release-check": "pnpm verify",
+    "verify": "pnpm lint && pnpm format:check && pnpm typecheck && pnpm test && pnpm audit:deps && pnpm package && echo '\\n✅ verify passed — aevra-extension.zip is release-ready'",
     "circuits": "node scripts/fetch-circuits.mjs",
     "smoke": "esbuild scripts/smoke.ts --bundle --platform=node --format=cjs --alias:@=./src --outfile=node_modules/.cache/smoke.cjs && node node_modules/.cache/smoke.cjs",
     "prepare": "husky"
@@ -35,7 +45,9 @@
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3.3.6",
+    "@playwright/test": "^1.61.1",
     "@tailwindcss/postcss": "^4",
+    "@testing-library/react": "^16.3.2",
     "@types/chrome": "^0.2.2",
     "@types/node": "^20",
     "@types/react": "^19",
@@ -46,11 +58,13 @@
     "eslint-plugin-simple-import-sort": "^13.0.0",
     "eslint-plugin-unused-imports": "^4.4.1",
     "husky": "^9.1.7",
+    "jsdom": "^29.1.1",
     "lint-staged": "^17.0.8",
     "prettier": "^3.9.5",
     "prettier-plugin-tailwindcss": "^0.8.1",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "vitest": "^4.1.10"
   },
   "lint-staged": {
     "*.{ts,tsx,mjs,js}": [
