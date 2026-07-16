@@ -1,65 +1,107 @@
-import Image from "next/image";
+"use client";
+import { AnimatePresence, motion } from "framer-motion";
+import { useEffect } from "react";
 
-export default function Home() {
+import { Activity } from "@/components/screens/Activity";
+import { Assets, TokenDetails } from "@/components/screens/Assets";
+import { Home } from "@/components/screens/Home";
+import {
+  BackupPhrase,
+  CreateWallet,
+  ImportWallet,
+  Unlock,
+  Welcome,
+} from "@/components/screens/Onboarding";
+import { Privacy } from "@/components/screens/Privacy";
+import { Receive, Send, SendReview, SendSuccess } from "@/components/screens/Send";
+import { Settings } from "@/components/screens/Settings";
+import { Shield, ShieldSuccess, Unshield } from "@/components/screens/Shield";
+import { type Screen, useWallet, walletProvider } from "@/store/wallet";
+
+function render(screen: Screen) {
+  switch (screen.name) {
+    case "welcome":
+      return <Welcome />;
+    case "create":
+      return <CreateWallet />;
+    case "import":
+      return <ImportWallet />;
+    case "unlock":
+      return <Unlock />;
+    case "home":
+      return <Home />;
+    case "assets":
+      return <Assets />;
+    case "token":
+      return <TokenDetails symbol={screen.symbol} shielded={screen.shielded} />;
+    case "send":
+      return <Send symbol={screen.symbol} />;
+    case "send-review":
+      return <SendReview />;
+    case "send-success":
+      return <SendSuccess />;
+    case "receive":
+      return <Receive />;
+    case "shield":
+      return <Shield symbol={screen.symbol} />;
+    case "shield-success":
+      return <ShieldSuccess mode="shield" />;
+    case "unshield":
+      return <Unshield symbol={screen.symbol} />;
+    case "unshield-success":
+      return <ShieldSuccess mode="unshield" />;
+    case "activity":
+      return <Activity />;
+    case "privacy":
+      return <Privacy />;
+    case "settings":
+      return <Settings />;
+    case "backup":
+      return <BackupPhrase />;
+  }
+}
+
+export default function Popup() {
+  const { booted, screen, boot, lock, autoLockMinutes } = useWallet();
+
+  useEffect(() => {
+    void boot();
+  }, [boot]);
+
+  // auto-lock after inactivity
+  useEffect(() => {
+    if (!walletProvider.isUnlocked()) return;
+    let timer: ReturnType<typeof setTimeout>;
+    const reset = () => {
+      clearTimeout(timer);
+      timer = setTimeout(() => lock(), autoLockMinutes * 60_000);
+    };
+    reset();
+    window.addEventListener("pointerdown", reset);
+    window.addEventListener("keydown", reset);
+    return () => {
+      clearTimeout(timer);
+      window.removeEventListener("pointerdown", reset);
+      window.removeEventListener("keydown", reset);
+    };
+  }, [autoLockMinutes, lock, screen.name]);
+
+  if (!booted) return null;
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+    <main className="flex h-[650px] w-[380px] flex-col overflow-hidden bg-white">
+      <AnimatePresence mode="wait">
+        <motion.div
+          key={screen.name}
+          initial={{ opacity: 0, x: 8 }}
+          animate={{ opacity: 1, x: 0 }}
+          exit={{ opacity: 0, x: -8 }}
+          transition={{ duration: 0.12 }}
+          className="flex min-h-0 flex-1 flex-col"
+        >
+          {render(screen)}
+        </motion.div>
+      </AnimatePresence>
+    </main>
   );
 }
