@@ -2,15 +2,15 @@
 // 09 · Settings
 import { useState } from "react";
 
-import { BottomNav } from "@/components/BottomNav";
+import { AppLayout } from "@/components/AppLayout";
 import { Avatar, Box, Divider, Hd, Lbl, shortAddr } from "@/components/ui";
 import { AVATAR_STYLES, type AvatarStyle } from "@/lib/avatar";
 import { profileFor, useWallet, walletProvider } from "@/store/wallet";
 
 const rowCls =
-  "flex w-full cursor-pointer items-center justify-between border-b border-[var(--av-divider)] py-[10px] text-[11px]";
+  "flex w-full cursor-pointer items-center justify-between border-b-2 border-[var(--av-divider)] py-[10px] text-[11px]";
 const inputCls =
-  "w-full rounded-[12px] border border-[var(--av-border)] p-2 text-[12px] outline-none placeholder:text-[var(--av-text-3)] focus:border-[var(--av-red)]";
+  "w-full rounded-none border border-[var(--av-text)] p-2 text-[12px] outline-none placeholder:text-[var(--av-text-3)] focus:border-[var(--av-red)]";
 
 const AUTO_LOCK_OPTIONS = [1, 5, 15, 30, 60];
 
@@ -42,13 +42,18 @@ export function Settings() {
     }
   };
 
-  return (
-    <div className="flex flex-1 flex-col">
+  const header = (
+    <>
       <div className="px-4 py-[14px]">
         <Hd>Settings</Hd>
       </div>
       <Divider />
-      <div className="flex flex-1 flex-col overflow-y-auto px-4 py-2">
+    </>
+  );
+
+  return (
+    <AppLayout header={header} showBottomNav activeTab="settings">
+      <div className="flex flex-col px-4 py-2">
         <Lbl className="pt-[10px] pb-1">Wallet</Lbl>
         <button className={rowCls} onClick={() => setAccountsOpen((v) => !v)}>
           <div>{account?.name}</div>
@@ -59,7 +64,7 @@ export function Settings() {
             {s.accounts.map((a) => (
               <button
                 key={a.index}
-                className="flex w-full cursor-pointer justify-between border-b border-[var(--av-divider)] px-3 py-2 text-[11px]"
+                className="flex w-full cursor-pointer justify-between border-b-2 border-[var(--av-divider)] px-3 py-2 text-[11px]"
                 onClick={() => s.setActiveIndex(a.index)}
               >
                 <div>
@@ -142,7 +147,7 @@ export function Settings() {
           <div>Privacy &amp; Security</div>
           <Lbl>›</Lbl>
         </button>
-        <button className={rowCls} onClick={() => s.navigate({ name: "backup" })}>
+        <button className={rowCls} onClick={() => s.navigate({ name: "backup-verify" })}>
           <div>Recovery Phrase</div>
           <Lbl>›</Lbl>
         </button>
@@ -153,10 +158,10 @@ export function Settings() {
             <button
               key={id}
               onClick={() => s.setNetwork(id)}
-              className={`flex-1 cursor-pointer rounded-[12px] border p-2 text-center text-[10px] capitalize ${
+              className={`flex-1 cursor-pointer rounded-none border p-2 text-center text-[10px] capitalize ${
                 s.networkId === id
                   ? "border-[var(--av-red)] bg-[var(--av-red)] text-white"
-                  : "border-[var(--av-border)]"
+                  : "border-[var(--av-text)]"
               }`}
             >
               {id === "fuji" ? "Fuji" : "Mainnet"}
@@ -187,7 +192,7 @@ export function Settings() {
             />
             {pwMsg && <Lbl>{pwMsg}</Lbl>}
             <button
-              className="cursor-pointer rounded-[12px] bg-[var(--av-red)] py-2 text-[10px] font-bold text-white hover:bg-[var(--av-red-hover)]"
+              className="cursor-pointer rounded-none bg-[var(--av-red)] py-2 text-[10px] font-bold text-white hover:bg-[var(--av-red-hover)]"
               onClick={changePassword}
             >
               Update Password
@@ -207,10 +212,10 @@ export function Settings() {
                   s.setSetting("autoLockMinutes", m);
                   setLockOpen(false);
                 }}
-                className={`flex-1 cursor-pointer rounded-[12px] border p-2 text-center text-[10px] ${
+                className={`flex-1 cursor-pointer rounded-none border p-2 text-center text-[10px] ${
                   s.autoLockMinutes === m
                     ? "border-[var(--av-red)] bg-[var(--av-red)] text-white"
-                    : "border-[var(--av-border)]"
+                    : "border-[var(--av-text)]"
                 }`}
               >
                 {m}m
@@ -224,7 +229,7 @@ export function Settings() {
           <div>Developer Mode</div>
           <button
             onClick={() => s.setSetting("developerMode", !s.developerMode)}
-            className={`relative h-[18px] w-8 cursor-pointer rounded-[10px] border border-[var(--av-red)] ${
+            className={`relative h-[18px] w-8 cursor-pointer rounded-none border border-[var(--av-red)] ${
               s.developerMode ? "bg-[var(--av-red)]" : ""
             }`}
           >
@@ -244,7 +249,6 @@ export function Settings() {
           </Box>
         )}
       </div>
-      <BottomNav active="settings" />
-    </div>
+    </AppLayout>
   );
 }

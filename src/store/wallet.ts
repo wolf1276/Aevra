@@ -35,7 +35,10 @@ export type Screen =
   | { name: "activity" }
   | { name: "privacy" }
   | { name: "settings" }
+  | { name: "backup-verify" }
   | { name: "backup" }
+  | { name: "export-key" }
+  | { name: "address-book" }
   | { name: "personalize" };
 
 /** Local-only personalization — never persisted on-chain or sent in transactions. */
@@ -58,6 +61,11 @@ export interface PendingSend {
   amount: string; // decimal string
   symbol: string;
   fee: string; // formatted AVAX
+}
+
+export interface Contact {
+  address: string;
+  name: string;
 }
 
 interface WalletState {
@@ -84,6 +92,7 @@ interface WalletState {
   developerMode: boolean;
   toast: string | null;
   profiles: Record<string, Profile>;
+  contacts: Contact[];
   // actions
   boot(): Promise<void>;
   navigate(screen: Screen): void;
@@ -104,11 +113,15 @@ interface WalletState {
   setAvatarStyle(address: string, style: AvatarStyle): void;
   regenerateAvatar(address: string): void;
   resetProfile(address: string): void;
+  addContact(contact: Contact): void;
+  removeContact(address: string): void;
 }
 
 const SETTINGS_KEY = "aevra.settings";
 const ACTIVE_INDEX_KEY = "aevra.activeIndex";
 const PROFILES_KEY = "aevra.profiles";
+const CONTACTS_KEY = "aevra.contacts";
+export const CREATED_AT_KEY = "aevra.createdAt";
 
 export const useWallet = create<WalletState>((set, get) => ({
   booted: false,
@@ -131,12 +144,14 @@ export const useWallet = create<WalletState>((set, get) => ({
   developerMode: false,
   toast: null,
   profiles: {},
+  contacts: [],
 
   async boot() {
-    const [has, settingsRaw, profilesRaw] = await Promise.all([
+    const [has, settingsRaw, profilesRaw, contactsRaw] = await Promise.all([
       walletProvider.hasWallet(),
       storageGet(SETTINGS_KEY),
       storageGet(PROFILES_KEY),
+      storageGet(CONTACTS_KEY),
     ]);
     if (settingsRaw) {
       const s = JSON.parse(settingsRaw);
@@ -147,6 +162,7 @@ export const useWallet = create<WalletState>((set, get) => ({
       });
     }
     if (profilesRaw) set({ profiles: JSON.parse(profilesRaw) });
+    if (contactsRaw) set({ contacts: JSON.parse(contactsRaw) });
     set({ booted: true, screen: { name: has ? "unlock" : "welcome" } });
   },
 
@@ -157,6 +173,7 @@ export const useWallet = create<WalletState>((set, get) => ({
   async createWallet(mnemonic, password) {
     const account = await walletProvider.createWallet(mnemonic, password);
     set({ accounts: [account], activeIndex: 0, screen: { name: "personalize" } });
+    void storageSet(CREATED_AT_KEY, String(Date.now()));
     void get().refresh();
   },
 
@@ -340,6 +357,18 @@ export const useWallet = create<WalletState>((set, get) => ({
     delete profiles[address];
     set({ profiles });
     void storageSet(PROFILES_KEY, JSON.stringify(profiles));
+  },
+
+  addContact(contact) {
+    const contacts = [...get().contacts, contact];
+    set({ contacts });
+    void storageSet(CONTACTS_KEY, JSON.stringify(contacts));
+  },
+
+  removeContact(address) {
+    const contacts = get().contacts.filter((c) => c.address !== address);
+    set({ contacts });
+    void storageSet(CONTACTS_KEY, JSON.stringify(contacts));
   },
 }));
 

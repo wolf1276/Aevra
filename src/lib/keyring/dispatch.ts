@@ -14,6 +14,8 @@ export async function dispatch(keyring: Keyring, req: KeyringRequest): Promise<u
       return keyring.createWallet(req.mnemonic, req.password);
     case "unlock":
       return keyring.unlock(req.password);
+    case "verifyPassword":
+      return keyring.verifyPassword(req.password);
     case "lock":
       return keyring.lock();
     case "isUnlocked":
@@ -28,6 +30,8 @@ export async function dispatch(keyring: Keyring, req: KeyringRequest): Promise<u
       return keyring.getAccounts();
     case "getMnemonic":
       return keyring.getMnemonic();
+    case "getPrivateKey":
+      return keyring.getPrivateKey(req.index);
     case "changePassword":
       return keyring.changePassword(req.current, req.next);
     case "sendTransaction":

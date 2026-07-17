@@ -10,6 +10,7 @@ export type KeyringRequest =
   | { op: "generateMnemonic" }
   | { op: "createWallet"; mnemonic: string; password: string }
   | { op: "unlock"; password: string }
+  | { op: "verifyPassword"; password: string }
   | { op: "lock" }
   | { op: "isUnlocked" }
   | { op: "addAccount" }
@@ -17,6 +18,7 @@ export type KeyringRequest =
   | { op: "renameAccount"; index: number; name: string }
   | { op: "getAccounts" }
   | { op: "getMnemonic" }
+  | { op: "getPrivateKey"; index: number }
   | { op: "changePassword"; current: string; next: string }
   | { op: "sendTransaction"; accountIndex: number; tx: SignableTx; network: NetworkInfo }
   | { op: "signMessage"; address: string; message: string }
@@ -29,6 +31,7 @@ export type KeyringResult = {
   generateMnemonic: string;
   createWallet: Account;
   unlock: Account[];
+  verifyPassword: boolean;
   lock: void;
   isUnlocked: boolean;
   addAccount: Account;
@@ -36,6 +39,7 @@ export type KeyringResult = {
   renameAccount: void;
   getAccounts: Account[];
   getMnemonic: string;
+  getPrivateKey: string;
   changePassword: void;
   sendTransaction: string;
   signMessage: string;

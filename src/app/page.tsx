@@ -3,21 +3,35 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect } from "react";
 
 import { Activity } from "@/components/screens/Activity";
+import { AddressBook } from "@/components/screens/AddressBook";
 import { Assets, TokenDetails, TokenHistory } from "@/components/screens/Assets";
 import { Home } from "@/components/screens/Home";
 import {
-  BackupPhrase,
   CreateWallet,
+  ExportPrivateKey,
   ImportWallet,
   Personalize,
+  RecoveryPhrase,
   Unlock,
+  VerifyRecoveryPassword,
   Welcome,
 } from "@/components/screens/Onboarding";
 import { Privacy } from "@/components/screens/Privacy";
 import { Receive, Send, SendReview, SendSuccess } from "@/components/screens/Send";
 import { Settings } from "@/components/screens/Settings";
 import { Toast } from "@/components/Toast";
+import { Hd, Mascot, Spinner } from "@/components/ui";
 import { type Screen, useWallet } from "@/store/wallet";
+
+function Splash() {
+  return (
+    <main className="relative flex h-[650px] w-[380px] flex-col items-center justify-center gap-4 overflow-hidden rounded-none border-2 border-[var(--av-text)] bg-white">
+      <Mascot size={84} />
+      <Hd className="text-[22px] tracking-[0.02em]">AEVRA</Hd>
+      <Spinner />
+    </main>
+  );
+}
 
 function render(screen: Screen) {
   switch (screen.name) {
@@ -51,8 +65,14 @@ function render(screen: Screen) {
       return <Privacy />;
     case "settings":
       return <Settings />;
+    case "backup-verify":
+      return <VerifyRecoveryPassword />;
     case "backup":
-      return <BackupPhrase />;
+      return <RecoveryPhrase />;
+    case "export-key":
+      return <ExportPrivateKey />;
+    case "address-book":
+      return <AddressBook />;
     case "personalize":
       return <Personalize />;
   }
@@ -65,10 +85,10 @@ export default function Popup() {
     void boot();
   }, [boot]);
 
-  if (!booted) return null;
+  if (!booted) return <Splash />;
 
   return (
-    <main className="relative flex h-[650px] w-[380px] flex-col overflow-hidden rounded-[16px] border border-[var(--av-border)] bg-white">
+    <main className="relative flex h-[650px] w-[380px] flex-col overflow-hidden rounded-none border-2 border-[var(--av-text)] bg-white">
       <AnimatePresence mode="wait">
         <motion.div
           key={screen.name}

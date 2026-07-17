@@ -7,9 +7,11 @@ import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { Avatar, Box, Btn, Divider, Hd, Header, Lbl, Ph } from "@/components/ui";
+import { AppLayout } from "@/components/AppLayout";
+import { Avatar, Box, Btn, Divider, Hd, Header, Lbl, Mascot } from "@/components/ui";
 import { AVATAR_STYLES, type AvatarStyle } from "@/lib/avatar";
-import { profileFor, useWallet, walletProvider } from "@/store/wallet";
+import { storageGet } from "@/lib/storage";
+import { CREATED_AT_KEY, profileFor, useWallet, walletProvider } from "@/store/wallet";
 
 const passwordSchema = z
   .object({
@@ -22,12 +24,13 @@ const passwordSchema = z
   });
 
 const inputCls =
-  "w-full rounded-[12px] border border-[var(--av-border)] p-3 text-[12px] outline-none placeholder:text-[var(--av-text-3)] focus:border-[var(--av-red)]";
+  "w-full rounded-none border border-[var(--av-text)] p-3 text-[12px] outline-none placeholder:text-[var(--av-text-3)] focus:border-[var(--av-red)]";
 
 export function Welcome() {
   const navigate = useWallet((s) => s.navigate);
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+      <Mascot size={84} className="mb-2" />
       <Hd className="text-[20px]">Aevra</Hd>
       <Lbl className="mt-2">Confidential wallet for Avalanche</Lbl>
       <Btn primary className="mt-8 w-[200px]" onClick={() => navigate({ name: "create" })}>
@@ -43,14 +46,21 @@ export function Welcome() {
 export function CreateWallet() {
   const { navigate, createWallet } = useWallet();
   const [mnemonic, setMnemonic] = useState("");
-  const [revealed, setRevealed] = useState(false);
+  const [revealedWords, setRevealedWords] = useState<boolean[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const form = useForm({ resolver: zodResolver(passwordSchema) });
 
   useEffect(() => {
-    void walletProvider.generateMnemonic().then(setMnemonic);
+    void walletProvider.generateMnemonic().then((m) => {
+      setMnemonic(m);
+      setRevealedWords(new Array(m.split(" ").length).fill(false));
+    });
   }, []);
+
+  const revealWord = (i: number) =>
+    setRevealedWords((prev) => prev.map((v, idx) => (idx === i ? true : v)));
+  const revealed = revealedWords.length > 0 && revealedWords.every(Boolean);
 
   const submit = form.handleSubmit(async ({ password }) => {
     setBusy(true);
@@ -62,27 +72,42 @@ export function CreateWallet() {
     }
   });
 
+  const header = <Header title="Create Wallet" onBack={() => navigate({ name: "welcome" })} />;
+
+  const footer = (
+    <div className="p-4">
+      <Btn primary disabled={!revealed || busy} className="w-full" onClick={submit}>
+        {busy ? "Creating…" : "Create Wallet"}
+      </Btn>
+    </div>
+  );
+
   return (
-    <div className="flex flex-1 flex-col">
-      <Header title="Create Wallet" onBack={() => navigate({ name: "welcome" })} />
-      <form onSubmit={submit} className="flex flex-1 flex-col gap-[14px] overflow-y-auto p-4">
+    <AppLayout header={header} footer={footer}>
+      <form onSubmit={submit} className="flex flex-col gap-[14px] p-4">
         <div>
-          <Lbl className="mb-[6px]">Recovery Phrase — write it down</Lbl>
-          {revealed ? (
-            <Box className="grid grid-cols-3 gap-1 p-3">
-              {mnemonic.split(" ").map((w, i) => (
-                <div key={i} className="text-[10px]">
-                  <span className="text-[var(--av-text-3)]">{i + 1}.</span> {w}
-                </div>
-              ))}
-            </Box>
-          ) : (
-            <Ph className="cursor-pointer p-6 text-center">
-              <button type="button" onClick={() => setRevealed(true)} className="cursor-pointer">
-                <Lbl>Tap to reveal phrase</Lbl>
+          <Lbl className="mb-[6px]">
+            Recovery Phrase — tap each word to reveal, then write it down
+          </Lbl>
+          <Box className="grid grid-cols-3 gap-2 p-3">
+            {mnemonic.split(" ").map((w, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => revealWord(i)}
+                className="cursor-pointer rounded-none border border-[var(--av-text)] bg-white p-2 text-left text-[10px]"
+              >
+                <span className="text-[var(--av-text-3)]">{i + 1}.</span>{" "}
+                <span
+                  className={`inline-block transition-[filter,opacity] duration-200 ${
+                    revealedWords[i] ? "" : "opacity-60 blur-[5px] select-none"
+                  }`}
+                >
+                  {w}
+                </span>
               </button>
-            </Ph>
-          )}
+            ))}
+          </Box>
         </div>
         <div>
           <Lbl className="mb-[6px]">Password</Lbl>
@@ -101,12 +126,8 @@ export function CreateWallet() {
           )}
         </div>
         {error && <Lbl className="text-[var(--av-red)]">{error}</Lbl>}
-        <div className="flex-1" />
-        <Btn primary disabled={!revealed || busy}>
-          {busy ? "Creating…" : "Create Wallet"}
-        </Btn>
       </form>
-    </div>
+    </AppLayout>
   );
 }
 
@@ -114,7 +135,7 @@ const importSchema = z
   .object({
     mnemonic: z
       .string()
-      .refine((v) => v.trim().split(/\s+/).length >= 12, "Enter your 12/24-word phrase"),
+      .refine((v) => v.trim().split(/\s+/).length >= 12, "Enter 12/24-word phrase"),
     password: z.string().min(8, "Min 8 characters"),
     confirm: z.string(),
   })
@@ -140,10 +161,19 @@ export function ImportWallet() {
     }
   });
 
+  const header = <Header title="Import Wallet" onBack={() => navigate({ name: "welcome" })} />;
+
+  const footer = (
+    <div className="p-4">
+      <Btn primary disabled={busy} className="w-full" onClick={submit}>
+        {busy ? "Importing…" : "Import Wallet"}
+      </Btn>
+    </div>
+  );
+
   return (
-    <div className="flex flex-1 flex-col">
-      <Header title="Import Wallet" onBack={() => navigate({ name: "welcome" })} />
-      <form onSubmit={submit} className="flex flex-1 flex-col gap-[14px] p-4">
+    <AppLayout header={header} footer={footer}>
+      <form onSubmit={submit} className="flex flex-col gap-[14px] p-4">
         <div>
           <Lbl className="mb-[6px]">Recovery Phrase</Lbl>
           <textarea rows={3} className={inputCls} {...form.register("mnemonic")} />
@@ -170,12 +200,8 @@ export function ImportWallet() {
           )}
         </div>
         {error && <Lbl className="text-[var(--av-red)]">{error}</Lbl>}
-        <div className="flex-1" />
-        <Btn primary disabled={busy}>
-          {busy ? "Importing…" : "Import Wallet"}
-        </Btn>
       </form>
-    </div>
+    </AppLayout>
   );
 }
 
@@ -202,7 +228,8 @@ export function Unlock() {
       onSubmit={submit}
       className="flex flex-1 flex-col items-center justify-center p-6 text-center"
     >
-      <Hd className="text-[20px]">Aevra</Hd>
+      <Mascot size={84} className="mb-2" />
+      <Hd className="text-[20px]">Welcome back</Hd>
       <Lbl className="mt-2">Enter password to unlock</Lbl>
       <input
         type="password"
@@ -234,10 +261,25 @@ export function Personalize() {
     s.navigate({ name: "home" });
   };
 
+  const header = <Header title="Personalize" />;
+
+  const footer = (
+    <>
+      <Divider />
+      <div className="flex gap-2 p-4">
+        <Btn className="flex-1" onClick={() => s.navigate({ name: "home" })}>
+          Skip
+        </Btn>
+        <Btn primary className="flex-1" onClick={done}>
+          Done
+        </Btn>
+      </div>
+    </>
+  );
+
   return (
-    <div className="flex flex-1 flex-col">
-      <Header title="Personalize" />
-      <div className="flex flex-1 flex-col items-center gap-4 overflow-y-auto p-4">
+    <AppLayout header={header} footer={footer}>
+      <div className="flex flex-col items-center gap-4 p-4">
         <Avatar seed={profile.avatarSeed} style={profile.avatarStyle} size={72} />
         <button
           type="button"
@@ -278,55 +320,209 @@ export function Personalize() {
             ))}
           </div>
         </div>
-        <div className="flex-1" />
       </div>
-      <Divider />
-      <div className="flex gap-2 p-4">
-        <Btn className="flex-1" onClick={() => s.navigate({ name: "home" })}>
-          Skip
-        </Btn>
-        <Btn primary className="flex-1" onClick={done}>
-          Done
-        </Btn>
-      </div>
-    </div>
+    </AppLayout>
   );
 }
 
-export function BackupPhrase() {
+/** Password gate in front of the recovery phrase — same behavior as unlocking. */
+export function VerifyRecoveryPassword() {
   const navigate = useWallet((s) => s.navigate);
-  const [mnemonic, setMnemonic] = useState("");
-  const reveal = () => {
-    void walletProvider.getMnemonic().then(setMnemonic);
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [shake, setShake] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setBusy(true);
+    setError("");
+    try {
+      const ok = await walletProvider.verifyPassword(password);
+      if (!ok) throw new Error("Incorrect password");
+      navigate({ name: "backup" });
+    } catch {
+      setError("Incorrect password");
+      setShake(true);
+      setTimeout(() => setShake(false), 400);
+    } finally {
+      setBusy(false);
+    }
   };
+
   return (
-    <div className="flex flex-1 flex-col">
-      <Header title="Backup Phrase" onBack={() => navigate({ name: "settings" })} />
-      <div className="flex flex-1 flex-col p-4">
-        <Lbl className="mb-[6px]">Never share this phrase with anyone</Lbl>
-        {mnemonic ? (
-          <Box className="grid grid-cols-3 gap-1 p-3">
-            {mnemonic.split(" ").map((w, i) => (
-              <div key={i} className="text-[10px]">
-                <span className="text-[var(--av-text-3)]">{i + 1}.</span> {w}
-              </div>
-            ))}
-          </Box>
-        ) : (
-          <Ph className="p-6 text-center">
-            <button type="button" onClick={reveal} className="cursor-pointer">
-              <Lbl>Tap to reveal phrase</Lbl>
-            </button>
-          </Ph>
-        )}
-        <div className="flex-1" />
+    <form
+      onSubmit={submit}
+      className={`flex flex-1 flex-col items-center justify-center p-6 text-center ${
+        shake ? "animate-[shake_0.4s]" : ""
+      }`}
+    >
+      <Mascot size={84} className="mb-2" />
+      <Hd className="text-[20px]">Verify your password</Hd>
+      <Lbl className="mt-2 max-w-[240px]">
+        Enter your wallet password to view your recovery phrase.
+      </Lbl>
+      <div className="relative mt-6 w-[220px]">
+        <input
+          type={showPassword ? "text" : "password"}
+          autoFocus
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          className={`${inputCls} pr-14 text-center`}
+          placeholder="Password"
+        />
+        <button
+          type="button"
+          onClick={() => setShowPassword((v) => !v)}
+          className="absolute top-1/2 right-2 -translate-y-1/2 cursor-pointer text-[9px] font-bold text-[var(--av-text-3)] uppercase"
+        >
+          {showPassword ? "Hide" : "Show"}
+        </button>
       </div>
-      <Divider />
-      <div className="p-4">
-        <Btn primary className="w-full" onClick={() => navigate({ name: "settings" })}>
-          Done
+      {error && <Lbl className="mt-2 text-[var(--av-red)]">{error}</Lbl>}
+      <Btn primary className="mt-4 w-[220px]" disabled={busy || !password}>
+        {busy ? "Verifying…" : "Continue"}
+      </Btn>
+      <Btn className="mt-2 w-[220px]" onClick={() => navigate({ name: "settings" })}>
+        Cancel
+      </Btn>
+    </form>
+  );
+}
+
+const downloadRecoveryBackup = (mnemonic: string, address: string, createdAt: string) => {
+  const text = [
+    "Recovery Phrase",
+    mnemonic,
+    "",
+    "Wallet Address",
+    address,
+    "",
+    "Creation Date",
+    createdAt,
+    "",
+    "Security Reminder",
+    "Never share this file or your recovery phrase with anyone. Anyone with these words can access your wallet.",
+  ].join("\n");
+  const blob = new Blob([text], { type: "text/plain" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "aevra-recovery-backup.txt";
+  a.click();
+  URL.revokeObjectURL(url);
+};
+
+/** Reached only after password verification — mirrors the design's premium
+ * recovery-phrase page. Never caches the phrase longer than this screen is
+ * open: it clears on back, tab-hide, or unmount, forcing re-verification. */
+export function RecoveryPhrase() {
+  const navigate = useWallet((s) => s.navigate);
+  const account = useWallet((s) => s.accounts[s.activeIndex]);
+  const [mnemonic, setMnemonic] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    void walletProvider.getMnemonic().then((m) => {
+      if (!cancelled) setMnemonic(m);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const hide = () => navigate({ name: "settings" });
+
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") hide();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    window.addEventListener("blur", onHide);
+    return () => {
+      document.removeEventListener("visibilitychange", onHide);
+      window.removeEventListener("blur", onHide);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const header = <Header title="Recovery Phrase" onBack={hide} />;
+
+  const words = mnemonic ? mnemonic.split(" ") : [];
+
+  return (
+    <AppLayout header={header}>
+      <div className="flex flex-col gap-4 p-4">
+        <Box className="border-[var(--av-red)] bg-[var(--av-red-tint)] p-3">
+          <div className="text-[11px] font-bold text-[var(--av-red)]">
+            ⚠ Never share your recovery phrase with anyone.
+          </div>
+          <Lbl className="mt-1 normal-case">Anyone with these words can access your wallet.</Lbl>
+        </Box>
+
+        <div className="grid grid-cols-3 gap-2">
+          {words.map((w, i) => (
+            <div
+              key={i}
+              className="rounded-[10px] border border-[var(--av-divider)] bg-white p-3 text-center shadow-sm"
+            >
+              <div className="text-[9px] text-[var(--av-text-3)]">{i + 1}.</div>
+              <div className="mt-1 text-[12px] font-semibold text-[var(--av-text)]">{w}</div>
+            </div>
+          ))}
+        </div>
+
+        <Btn
+          primary
+          className="w-full"
+          disabled={!mnemonic}
+          onClick={() => {
+            void navigator.clipboard.writeText(mnemonic);
+            useWallet.getState().showToast("✓ Recovery phrase copied.");
+          }}
+        >
+          Copy Recovery Phrase
+        </Btn>
+        <Btn
+          className="w-full"
+          disabled={!mnemonic || !account}
+          onClick={async () => {
+            if (!account) return;
+            const createdAtRaw = await storageGet(CREATED_AT_KEY);
+            const createdAt = createdAtRaw
+              ? new Date(Number(createdAtRaw)).toLocaleString()
+              : "Unknown";
+            downloadRecoveryBackup(mnemonic, account.address, createdAt);
+            useWallet.getState().showToast("✓ Backup downloaded.");
+          }}
+        >
+          Download Backup
+        </Btn>
+        <button
+          type="button"
+          onClick={hide}
+          className="cursor-pointer text-center text-[10px] font-bold text-[var(--av-red)] uppercase"
+        >
+          Hide Recovery Phrase
+        </button>
+      </div>
+    </AppLayout>
+  );
+}
+
+export function ExportPrivateKey() {
+  const navigate = useWallet((s) => s.navigate);
+  return (
+    <AppLayout
+      header={<Header title="Export Private Key" onBack={() => navigate({ name: "settings" })} />}
+    >
+      <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
+        <Lbl>Private key export is not yet implemented.</Lbl>
+        <Btn className="mt-4 w-[200px]" onClick={() => navigate({ name: "settings" })}>
+          Go Back
         </Btn>
       </div>
-    </div>
+    </AppLayout>
   );
 }

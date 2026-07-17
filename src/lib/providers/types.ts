@@ -28,6 +28,8 @@ export interface WalletProvider {
   /** Decrypt with password; throws on wrong password. Returns accounts. */
   unlock(password: string): Promise<Account[]>;
   lock(): void;
+  /** Check a password against the vault without changing unlock state. */
+  verifyPassword(password: string): Promise<boolean>;
   isUnlocked(): boolean;
   /** Derive the next account and persist its count. */
   addAccount(): Promise<Account>;
@@ -37,6 +39,8 @@ export interface WalletProvider {
   getAccounts(): Account[];
   /** Reveal the mnemonic (requires unlocked wallet). */
   getMnemonic(): Promise<string>;
+  /** Reveal the private key for an account (requires unlocked wallet). */
+  getPrivateKey(index: number): Promise<string>;
   /** Re-encrypt the stored wallet with a new password. */
   changePassword(current: string, next: string): Promise<void>;
   /** Sign & send a transaction from the given account. Returns tx hash. */

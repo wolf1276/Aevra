@@ -68,6 +68,18 @@ export class Keyring {
     this.accounts = [];
   }
 
+  /** Check a password against the stored vault without changing unlock state. */
+  async verifyPassword(password: string): Promise<boolean> {
+    const json = await storageGet(VAULT_KEY);
+    if (!json) return false;
+    try {
+      await Wallet.fromEncryptedJson(json, password);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
   isUnlocked(): boolean {
     return this.root !== null;
   }
@@ -104,6 +116,12 @@ export class Keyring {
   getMnemonic(): string {
     if (!this.root?.mnemonic) throw new Error("Wallet locked");
     return this.root.mnemonic.phrase;
+  }
+
+  getPrivateKey(index: number): string {
+    const account = this.accounts.find((a) => a.index === index);
+    if (!account) throw new Error("Unknown account");
+    return this.signerAt(index).privateKey;
   }
 
   async changePassword(current: string, next: string): Promise<void> {

@@ -1,22 +1,25 @@
 @import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap");
 
-/* Avalanche brand theme */
+/* Aevra brand theme — brutalist Modernist system: sharp corners, thick ink
+   borders, one accent. Ported 1:1 from the "Aevra Wallet" Claude Design doc. */
 :root {
-  --av-red: #e84142;
-  --av-red-hover: #ff5a5f;
-  --av-red-press: #cf3536;
-  --av-red-accent: #ff7075;
-  --av-red-tint: #fdeceb;
+  --av-red: #ec3013;
+  --av-red-hover: #dd2b0f;
+  --av-red-press: #ae1800;
+  --av-red-accent: #ff9783;
+  --av-red-tint: #fff2ef;
   --av-bg: #ffffff;
-  --av-bg-2: #fafafa;
-  --av-border: #ececec;
-  --av-divider: #f2f2f2;
-  --av-text: #111111;
-  --av-text-2: #666666;
-  --av-text-3: #999999;
+  --av-bg-2: #f3f2f2;
+  --av-border: #201e1d;
+  --av-divider: #201e1d;
+  --av-text: #201e1d;
+  --av-text-2: #605d5d;
+  --av-text-3: #7d7979;
   --av-success: #16a34a;
   --av-warning: #f59e0b;
-  --av-glow: rgba(232, 65, 66, 0.28);
+  --av-glow: rgba(236, 48, 19, 0.28);
+  --nav-h: 68px;
 }
 
 html,
@@ -26,7 +29,12 @@ body {
   margin: 0;
   background: var(--av-bg);
   color: var(--av-text);
-  font-family: -apple-system, "Inter", "Helvetica Neue", Arial, sans-serif;
+  font-family:
+    "Archivo",
+    -apple-system,
+    "Helvetica Neue",
+    Arial,
+    sans-serif;
   overflow: hidden;
 }
 
@@ -37,5 +45,41 @@ body {
   }
   50% {
     transform: translateY(-6px);
+  }
+}
+
+@keyframes mascotfloat {
+  0%,
+  100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-8px) scale(1.03);
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shake {
+  10%,
+  90% {
+    transform: translateX(-2px);
+  }
+  20%,
+  80% {
+    transform: translateX(4px);
+  }
+  30%,
+  50%,
+  70% {
+    transform: translateX(-6px);
+  }
+  40%,
+  60% {
+    transform: translateX(6px);
   }
 }

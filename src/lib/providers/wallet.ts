@@ -71,6 +71,10 @@ export class KeyringClientProvider implements WalletProvider {
     void sendRequest({ op: "lock" });
   }
 
+  async verifyPassword(password: string): Promise<boolean> {
+    return sendRequest({ op: "verifyPassword", password });
+  }
+
   isUnlocked(): boolean {
     return this.unlocked;
   }
@@ -98,6 +102,10 @@ export class KeyringClientProvider implements WalletProvider {
 
   async getMnemonic(): Promise<string> {
     return sendRequest({ op: "getMnemonic" });
+  }
+
+  async getPrivateKey(index: number): Promise<string> {
+    return sendRequest({ op: "getPrivateKey", index });
   }
 
   async changePassword(current: string, next: string): Promise<void> {
