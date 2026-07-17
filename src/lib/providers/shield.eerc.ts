@@ -18,6 +18,7 @@ import {
   isAddress,
   parseAbi,
   type PublicClient,
+  WaitForTransactionReceiptTimeoutError,
   type WalletClient,
 } from "viem";
 
@@ -135,10 +136,16 @@ async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
 
 /** Errors carrying their own user-facing message — passed through normalizeError untouched. */
 const SURFACE_VERBATIM = [
-  "The confidential payment system is not configured correctly.",
+  /^Auditor public key is invalid or not configured on-chain\.$/,
   /^Unable to verify registration status:/,
   /^Registration failed:/,
   /^This token supports at most /,
+  /^Wallet locked$/,
+  /^Confidential transfers are disabled$/,
+  /^Network mismatch/,
+  /^Converter unavailable/,
+  /^Timed out /,
+  /^Transaction reverted/,
 ];
 
 async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
@@ -153,6 +160,16 @@ async function withTimeout<T>(promise: Promise<T>, ms: number, message: string):
   }
 }
 
+/** Broadcast succeeded but the receipt didn't land within confirm()'s timeout —
+ *  the tx hash is real and still trackable, so callers treat this as a
+ *  pending outcome rather than a failure. */
+class TransactionPendingError extends Error {
+  constructor(public readonly hash: `0x${string}`) {
+    super("Transaction is still pending.");
+    this.name = "TransactionPendingError";
+  }
+}
+
 function normalizeError(e: unknown): Error {
   console.error("send pipeline error:", e); // raw cause for debugging — user sees friendly text
   dumpFullError("normalizeError", e);
@@ -164,11 +181,19 @@ function normalizeError(e: unknown): Error {
     return new Error("Insufficient balance");
   if (/invalid recipient/i.test(msg)) return new Error("Invalid recipient address");
   if (/recipient/i.test(msg)) return new Error("Recipient can't receive private payments yet");
-  if (/fetch|network|timeout|ECONN|mismatch/i.test(msg))
-    return new Error("Network error — please try again");
-  // Everything else (wrap, approval, converter, proof, revert, config) is an
-  // internal pipeline detail — never expose protocol terminology.
-  return new Error("Unable to prepare secure payment. Please try again.");
+
+  const viemErr = e instanceof BaseError ? e : undefined;
+  const revert = viemErr?.walk((err) => err instanceof ContractFunctionRevertedError) as
+    ContractFunctionRevertedError | undefined;
+  if (revert) return new Error(`Contract reverted: ${revert.reason ?? revert.shortMessage ?? msg}`);
+  if (/execution reverted/i.test(msg)) return new Error(`Simulation failed: ${msg}`);
+  if (/proof|witness|circuit|wasm|zkey|snarkjs/i.test(msg))
+    return new Error(`Proof generation failed: ${msg}`);
+  if (/fetch|ECONN|network/i.test(msg)) return new Error(`RPC error: ${msg}`);
+  if (/timeout/i.test(msg)) return new Error(`Timed out: ${msg}`);
+
+  // No more masking — surface whatever the pipeline actually said.
+  return new Error(msg || "Payment failed for an unknown reason.");
 }
 
 /** Rescale a bigint amount between decimal systems (ceil when losing precision). */
@@ -324,7 +349,7 @@ export class EERCConverterProvider implements ShieldProvider {
       auditorPublicKey.length === 2 &&
       eerc.curve.inCurve([auditorPublicKey[0], auditorPublicKey[1]]);
     if (isZeroPoint || !isValidPoint) {
-      throw new Error("The confidential payment system is not configured correctly.");
+      throw new Error("Auditor public key is invalid or not configured on-chain.");
     }
 
     const session: Session = {
@@ -444,6 +469,15 @@ export class EERCConverterProvider implements ShieldProvider {
     const deficit = needed - wavaxBalance;
     const nativeBalance = await session.client.getBalance({ address: owner as `0x${string}` });
     if (nativeBalance <= deficit) throw new Error("Insufficient balance"); // must also leave gas
+    await step("wrapIfNeeded:simulateContract", () =>
+      session.client.simulateContract({
+        address: tokenAddress as `0x${string}`,
+        abi: WAVAX_ABI,
+        functionName: "deposit",
+        value: deficit,
+        account: session.wallet.account!,
+      }),
+    );
     const hash = await session.wallet.writeContract({
       address: tokenAddress as `0x${string}`,
       abi: WAVAX_ABI,
@@ -470,6 +504,15 @@ export class EERCConverterProvider implements ShieldProvider {
     })) as bigint;
     const wad = amount < balance ? amount : balance;
     if (wad <= 0n) return;
+    await step("unwrap:simulateContract", () =>
+      session.client.simulateContract({
+        address: tokenAddress as `0x${string}`,
+        abi: WAVAX_ABI,
+        functionName: "withdraw",
+        args: [wad],
+        account: session.wallet.account!,
+      }),
+    );
     const hash = await session.wallet.writeContract({
       address: tokenAddress as `0x${string}`,
       abi: WAVAX_ABI,
@@ -524,18 +567,17 @@ export class EERCConverterProvider implements ShieldProvider {
         args: [owner as `0x${string}`],
       })) as bigint;
       if (balance < amount) throw new Error("Insufficient balance");
-      // TEMP DEBUG — simulate first so a revert is decoded before we spend gas.
-      try {
-        await session.client.simulateContract({
+      // Simulate first — a revert here is decoded (dumpFullError) and rethrown,
+      // never broadcast.
+      await step("approveERC20:simulateContract", () =>
+        session.client.simulateContract({
           address: tokenAddress as `0x${string}`,
           abi: erc20Abi,
           functionName: "approve",
           args: [session.network.converterAddress as `0x${string}`, amount],
           account: session.wallet.account!,
-        });
-      } catch (simErr) {
-        dumpFullError("approveERC20:simulateContract", simErr);
-      }
+        }),
+      );
       const hash = await step("approveERC20:wallet.writeContract", () =>
         session.wallet.writeContract({
           address: tokenAddress as `0x${string}`,
@@ -546,10 +588,7 @@ export class EERCConverterProvider implements ShieldProvider {
           account: session.wallet.account!,
         }),
       );
-      const receipt = await step("approveERC20:waitForTransactionReceipt", () =>
-        session.client.waitForTransactionReceipt({ hash }),
-      );
-      if (receipt.status !== "success") throw new Error("Approval rejected");
+      await this.confirm(session, hash);
     });
   }
 
@@ -596,7 +635,21 @@ export class EERCConverterProvider implements ShieldProvider {
 
   private async confirm(session: Session, hash: `0x${string}`): Promise<void> {
     return step(`confirm:waitForTransactionReceipt(${hash})`, async () => {
-      const receipt = await session.client.waitForTransactionReceipt({ hash });
+      let receipt: Awaited<ReturnType<PublicClient["waitForTransactionReceipt"]>>;
+      try {
+        // viem polls + retries on RPC hiccups on its own; timeout caps total wait
+        // so a stalled node can never hang confirmation forever.
+        receipt = await session.client.waitForTransactionReceipt({
+          hash,
+          timeout: 90_000,
+          pollingInterval: 2_000,
+          retryCount: 5,
+        });
+      } catch (e) {
+        if (e instanceof WaitForTransactionReceiptTimeoutError)
+          throw new TransactionPendingError(hash);
+        throw e;
+      }
       if (receipt.status !== "success") throw new Error("Transaction reverted");
     });
   }
@@ -663,7 +716,16 @@ export class EERCConverterProvider implements ShieldProvider {
         session.eerc.deposit(amount, token.address, session.eercDecimals),
       );
       onProgress?.({ step: "submitting", percent: 85 });
-      await this.confirm(session, transactionHash);
+      // Broadcast succeeded either way — a stuck confirmation still records
+      // (and returns) the real hash so the user can track it in Activity,
+      // instead of losing it behind a thrown error.
+      const status = await this.confirm(session, transactionHash).then(
+        () => "confirmed" as const,
+        (e) => {
+          if (e instanceof TransactionPendingError) return "pending" as const;
+          throw e;
+        },
+      );
       onProgress?.({ step: "done", percent: 100 });
       await this.record(address, {
         hash: transactionHash,
@@ -672,7 +734,7 @@ export class EERCConverterProvider implements ShieldProvider {
         amount: (Number(amount) / 10 ** token.decimals).toFixed(4),
         timestamp: Date.now(),
         visibility: "shielded",
-        status: "confirmed",
+        status,
         explorerUrl: this.explorerUrl(transactionHash),
         proofId: transactionHash, // proof lives inside the deposit tx
       });
@@ -709,8 +771,14 @@ export class EERCConverterProvider implements ShieldProvider {
         ),
       );
       onProgress?.({ step: "submitting", percent: 85 });
-      await this.confirm(session, transactionHash);
-      if (token.native) {
+      const status = await this.confirm(session, transactionHash).then(
+        () => "confirmed" as const,
+        (e) => {
+          if (e instanceof TransactionPendingError) return "pending" as const;
+          throw e;
+        },
+      );
+      if (status === "confirmed" && token.native) {
         // deliver native AVAX, never leave the user holding the wrapper
         const erc20Amount = scaleUnits(amount, Number(session.eercDecimals), token.decimals);
         await this.unwrap(session, address, token.address, erc20Amount);
@@ -723,7 +791,7 @@ export class EERCConverterProvider implements ShieldProvider {
         amount: (Number(amount) / 10 ** Number(session.eercDecimals)).toFixed(4),
         timestamp: Date.now(),
         visibility: "shielded",
-        status: "confirmed",
+        status,
         explorerUrl: this.explorerUrl(transactionHash),
         proofId: transactionHash,
       });
@@ -778,7 +846,13 @@ export class EERCConverterProvider implements ShieldProvider {
         } as unknown as Parameters<WalletClient["writeContract"]>[0]),
       );
       onProgress?.({ step: "submitting", percent: 85 });
-      await this.confirm(session, transactionHash);
+      const status = await this.confirm(session, transactionHash).then(
+        () => "confirmed" as const,
+        (e) => {
+          if (e instanceof TransactionPendingError) return "pending" as const;
+          throw e;
+        },
+      );
       onProgress?.({ step: "done", percent: 100 });
       await this.record(address, {
         hash: transactionHash,
@@ -788,7 +862,7 @@ export class EERCConverterProvider implements ShieldProvider {
         timestamp: Date.now(),
         visibility: "shielded",
         to,
-        status: "confirmed",
+        status,
         explorerUrl: this.explorerUrl(transactionHash),
         proofId: transactionHash,
       });

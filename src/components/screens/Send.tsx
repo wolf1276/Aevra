@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { AppLayout } from "@/components/AppLayout";
 import { Box, Btn, Circ, Divider, Hd, Header, Lbl, Pill, shortAddr } from "@/components/ui";
+import { fmtUnits } from "@/lib/format";
 import type { ShieldProgress } from "@/lib/providers/types";
 import { shieldProvider, useWallet } from "@/store/wallet";
 
@@ -40,7 +41,7 @@ export function Send({ symbol }: { symbol?: string }) {
       setError("Enter an amount");
       return;
     }
-    s.setPendingSend({ to, amount, symbol: sendSymbol, fee: "~0.001" });
+    s.setPendingSend({ to, amount, symbol: sendSymbol });
     s.navigate({ name: "send-review" });
   };
 
@@ -88,16 +89,68 @@ export function Send({ symbol }: { symbol?: string }) {
   );
 }
 
+// Module-level cache: the estimate is expensive (real proof + simulation), so a
+// round trip Send -> Review -> Send -> Review with an unchanged draft reuses it
+// instead of regenerating. Keyed on everything that changes the exact fee.
+let feeCache: { sig: string; fee: bigint } | null = null;
+
 export function SendReview() {
   const s = useWallet();
   const p = s.pendingSend;
   const [busy, setBusy] = useState(false);
   const [progress, setProgress] = useState<ShieldProgress | null>(null);
   const [error, setError] = useState("");
+  const [fee, setFee] = useState<bigint | null>(null);
+  const [feeError, setFeeError] = useState(false);
+  const [prepStep, setPrepStep] = useState<"proof" | "fee" | "ready">("proof");
   const account = s.accounts[s.activeIndex];
+  const encryptedBal = s.shielded.find((b) => b.symbol === `e${p?.symbol}`)?.balance ?? 0n;
+  const publicBal = s.tokens.find((b) => b.symbol === p?.symbol)?.balance ?? 0n;
+
+  const sig = p
+    ? [p.to, p.amount, p.symbol, s.networkId, account?.address, encryptedBal, publicBal].join("|")
+    : "";
+
+  // Runs once per distinct transaction draft (entering Review), not on keystrokes —
+  // typing happens on the Send screen, before pendingSend is set.
+  useEffect(() => {
+    if (!p || !account) return;
+    if (feeCache?.sig === sig) {
+      setFee(feeCache.fee);
+      setFeeError(false);
+      setPrepStep("ready");
+      return;
+    }
+    let cancelled = false;
+    setFee(null);
+    setFeeError(false);
+    setPrepStep("proof");
+    void shieldProvider
+      .estimateSendFee(account.address, p.symbol, p.amount, p.to)
+      .then((est) => {
+        if (cancelled) return;
+        setPrepStep("fee");
+        feeCache = { sig, fee: est.totalFee };
+        setFee(est.totalFee);
+        setPrepStep("ready");
+      })
+      .catch((e) => {
+        console.error("fee estimate failed:", e);
+        if (!cancelled) {
+          setFeeError(true);
+          setPrepStep("ready");
+        }
+      });
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- sig captures every input
+  }, [sig]);
 
   // only reachable via review(), which sets pendingSend; cleared during exit animation
   if (!p) return null;
+
+  const preparing = prepStep !== "ready";
 
   const confirm = async () => {
     setBusy(true);
@@ -115,7 +168,7 @@ export function SendReview() {
       s.setPendingSend(null);
       void s.refresh();
     } catch (e) {
-      setError(e instanceof Error ? e.message.slice(0, 100) : "Transaction failed");
+      setError(e instanceof Error ? e.message.slice(0, 200) : "Transaction failed");
       setBusy(false);
       setProgress(null);
     }
@@ -130,8 +183,8 @@ export function SendReview() {
         <Btn className="flex-1" disabled={busy} onClick={() => s.navigate({ name: "send" })}>
           Cancel
         </Btn>
-        <Btn primary className="flex-[2]" disabled={busy} onClick={confirm}>
-          {busy ? "Sending…" : "Send"}
+        <Btn primary className="flex-[2]" disabled={busy || preparing} onClick={confirm}>
+          {busy ? "Sending…" : preparing ? "Preparing…" : "Send"}
         </Btn>
       </div>
     </>
@@ -155,10 +208,24 @@ export function SendReview() {
           <Pill>Protected</Pill>
         </div>
         <div className="h-px w-full bg-[var(--av-divider)]" />
-        <div className="flex justify-between">
-          <Lbl>Network Fee</Lbl>
-          <div className="text-[11px]">{p.fee} AVAX</div>
-        </div>
+        {preparing ? (
+          <div className="flex flex-col gap-1">
+            <Lbl>Preparing Confidential Transaction…</Lbl>
+            <Lbl className={prepStep === "proof" ? "" : "text-[var(--av-red)]"}>
+              {prepStep === "proof"
+                ? "Generating Zero-Knowledge Proof…"
+                : "✓ Confidential proof ready"}
+            </Lbl>
+            <Lbl className={prepStep === "proof" ? "opacity-40" : ""}>Estimating Network Fee…</Lbl>
+          </div>
+        ) : (
+          <div className="flex justify-between">
+            <Lbl>Estimated Network Fee</Lbl>
+            <div className="text-[11px]">
+              {feeError ? "Unavailable" : `${fmtUnits(fee!, 18, 5)} AVAX`}
+            </div>
+          </div>
+        )}
         {progress && (
           <div className="mt-2">
             <Lbl className="mb-1">{STEP_LABEL[progress.step]}</Lbl>

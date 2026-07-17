@@ -3,7 +3,8 @@
 // Not drawn in the wireframe set — kept in the same visual language,
 // minimal, since Phase 1 requires wallet creation & import.
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useEffect, useState } from "react";
+import { Mnemonic, wordlists } from "ethers";
+import { useEffect, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -12,6 +13,19 @@ import { Avatar, Box, Btn, Divider, Hd, Header, Lbl, Mascot } from "@/components
 import { AVATAR_STYLES, type AvatarStyle } from "@/lib/avatar";
 import { storageGet } from "@/lib/storage";
 import { CREATED_AT_KEY, profileFor, useWallet, walletProvider } from "@/store/wallet";
+
+// Accepts phrases copied from any wallet: numbered ("1. word", "2) word",
+// "3: word", "4 - word"), comma-separated, newline-separated, or plain
+// whitespace-separated. Digits never appear inside BIP-39 words, so
+// stripping all numbering/punctuation up front is safe.
+function normalizeMnemonic(text: string): string[] {
+  return text
+    .replace(/\d+\s*[.):,\-:]?\s*/g, " ")
+    .replace(/[,;]/g, " ")
+    .split(/\s+/)
+    .map((w) => w.trim().toLowerCase())
+    .filter(Boolean);
+}
 
 const passwordSchema = z
   .object({
@@ -131,61 +145,216 @@ export function CreateWallet() {
   );
 }
 
-const importSchema = z
-  .object({
-    mnemonic: z
-      .string()
-      .refine((v) => v.trim().split(/\s+/).length >= 12, "Enter 12/24-word phrase"),
-    password: z.string().min(8, "Min 8 characters"),
-    confirm: z.string(),
-  })
-  .refine((d) => d.password === d.confirm, {
-    message: "Passwords do not match",
-    path: ["confirm"],
-  });
+const STANDARD_LENGTHS = [12, 15, 18, 21, 24];
+
+/** 3-column grid of per-word boxes with smart paste, autofocus, and BIP-39 validation. */
+function MnemonicGrid({
+  words,
+  setWords,
+  invalidIdx,
+}: {
+  words: string[];
+  setWords: (w: string[]) => void;
+  invalidIdx: Set<number>;
+}) {
+  const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  const applyParsed = (parsed: string[]) => {
+    const targetLen =
+      parsed.length > words.length
+        ? (STANDARD_LENGTHS.find((l) => l >= parsed.length) ?? parsed.length)
+        : words.length;
+    const next = Array(targetLen).fill("");
+    parsed.forEach((w, i) => {
+      if (i < next.length) next[i] = w;
+    });
+    setWords(next);
+    const focusIdx = Math.min(parsed.length, next.length - 1);
+    requestAnimationFrame(() => inputRefs.current[focusIdx]?.focus());
+  };
+
+  const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    const parsed = normalizeMnemonic(e.clipboardData.getData("text"));
+    if (parsed.length < 2) return; // single word: let default paste behavior fill this box
+    e.preventDefault();
+    applyParsed(parsed);
+  };
+
+  const setWord = (i: number, value: string) => {
+    const next = [...words];
+    next[i] = value.replace(/\s/g, "").toLowerCase();
+    setWords(next);
+  };
+
+  const handleKeyDown = (i: number, e: React.KeyboardEvent<HTMLInputElement>) => {
+    const el = e.currentTarget;
+    if (e.key === " ") {
+      e.preventDefault();
+      if (el.value.trim()) inputRefs.current[i + 1]?.focus();
+    } else if (e.key === "Backspace" && el.value === "" && i > 0) {
+      e.preventDefault();
+      inputRefs.current[i - 1]?.focus();
+    } else if (e.key === "ArrowLeft" && el.selectionStart === 0 && i > 0) {
+      inputRefs.current[i - 1]?.focus();
+    } else if (
+      e.key === "ArrowRight" &&
+      el.selectionStart === el.value.length &&
+      i < words.length - 1
+    ) {
+      inputRefs.current[i + 1]?.focus();
+    }
+  };
+
+  return (
+    <Box className="grid grid-cols-3 gap-2 p-3">
+      {words.map((w, i) => (
+        <div
+          key={i}
+          className={`flex items-center gap-1 rounded-none border bg-white px-2 ${
+            invalidIdx.has(i) ? "border-[var(--av-red)]" : "border-[var(--av-text)]"
+          }`}
+        >
+          <span className="text-[10px] text-[var(--av-text-3)]">{i + 1}</span>
+          <input
+            ref={(el) => {
+              inputRefs.current[i] = el;
+            }}
+            value={w}
+            onChange={(e) => setWord(i, e.target.value)}
+            onPaste={handlePaste}
+            onKeyDown={(e) => handleKeyDown(i, e)}
+            autoComplete="off"
+            autoCapitalize="off"
+            autoCorrect="off"
+            spellCheck={false}
+            aria-label={`Word ${i + 1}`}
+            className="w-full min-w-0 p-2 text-[10px] outline-none"
+          />
+        </div>
+      ))}
+    </Box>
+  );
+}
+
+const RECOVERY_STEPS = [
+  "Finding your wallet…",
+  "Deriving accounts…",
+  "Creating encrypted vault…",
+  "Loading balances…",
+  "Almost ready…",
+];
+
+function RecoveringState() {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setStep((s) => Math.min(s + 1, RECOVERY_STEPS.length - 1)), 700);
+    return () => clearInterval(id);
+  }, []);
+  return (
+    <div className="flex flex-1 flex-col items-center justify-center gap-3 p-6 text-center">
+      <div className="h-8 w-8 animate-spin rounded-full border-2 border-[var(--av-text-3)] border-t-[var(--av-red)]" />
+      <div role="status" aria-live="polite">
+        <Lbl>{RECOVERY_STEPS[step]}</Lbl>
+      </div>
+    </div>
+  );
+}
 
 export function ImportWallet() {
   const { navigate, createWallet } = useWallet();
+  const [words, setWords] = useState<string[]>(Array(12).fill(""));
+  const [phraseError, setPhraseError] = useState("");
+  const [recovering, setRecovering] = useState(false);
   const [error, setError] = useState("");
-  const [busy, setBusy] = useState(false);
-  const form = useForm({ resolver: zodResolver(importSchema) });
+  const form = useForm({ resolver: zodResolver(passwordSchema), mode: "onChange" });
+  const startedRef = useRef(false); // guards against double-firing the auto-import
 
-  const submit = form.handleSubmit(async ({ mnemonic, password }) => {
-    setBusy(true);
+  const filled = words.every((w) => w.length > 0);
+  const phrase = words.join(" ");
+  const invalidIdx = new Set(
+    words.map((w, i) => (w && wordlists.en.getWordIndex(w) === -1 ? i : -1)).filter((i) => i >= 0),
+  );
+
+  useEffect(() => {
+    if (!filled) {
+      setPhraseError("");
+      return;
+    }
+    setPhraseError(Mnemonic.isValidMnemonic(phrase) ? "" : "Invalid recovery phrase.");
+  }, [filled, phrase]);
+
+  const phraseValid = filled && !phraseError;
+
+  // As soon as the phrase checks out, jump straight into the password
+  // field — the only step left before recovery can start.
+  useEffect(() => {
+    if (phraseValid) form.setFocus("password");
+  }, [phraseValid, form]);
+
+  const password = form.watch("password");
+  const confirm = form.watch("confirm");
+
+  const runImport = async (pw: string) => {
+    startedRef.current = true;
+    setRecovering(true);
     setError("");
     try {
-      await createWallet(mnemonic, password);
+      await createWallet(phrase, pw);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Import failed");
-      setBusy(false);
+      setRecovering(false);
+      startedRef.current = false;
     }
-  });
+  };
+
+  // Auto-import the instant every requirement is met — no button, no
+  // extra confirmation. A short debounce lets the last keystroke of a
+  // matching confirm-password land before we act on it.
+  useEffect(() => {
+    if (!phraseValid || startedRef.current) return;
+    if (!password || !confirm) return;
+    if (!passwordSchema.safeParse({ password, confirm }).success) return;
+    const id = setTimeout(() => void runImport(password), 350);
+    return () => clearTimeout(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [phraseValid, password, confirm, phrase]);
 
   const header = <Header title="Import Wallet" onBack={() => navigate({ name: "welcome" })} />;
 
+  if (recovering) {
+    return (
+      <AppLayout header={header}>
+        <RecoveringState />
+      </AppLayout>
+    );
+  }
+
   const footer = (
     <div className="p-4">
-      <Btn primary disabled={busy} className="w-full" onClick={submit}>
-        {busy ? "Importing…" : "Import Wallet"}
+      <Btn className="w-full" onClick={() => navigate({ name: "welcome" })}>
+        Cancel
       </Btn>
     </div>
   );
 
   return (
     <AppLayout header={header} footer={footer}>
-      <form onSubmit={submit} className="flex flex-col gap-[14px] p-4">
+      <form className="flex flex-col gap-[14px] p-4">
         <div>
-          <Lbl className="mb-[6px]">Recovery Phrase</Lbl>
-          <textarea rows={3} className={inputCls} {...form.register("mnemonic")} />
-          {form.formState.errors.mnemonic && (
-            <Lbl className="mt-1 text-[var(--av-red)]">
-              {form.formState.errors.mnemonic.message}
-            </Lbl>
-          )}
+          <Lbl className="mb-[6px]">
+            Recovery Phrase — paste your whole phrase, or type it word by word
+          </Lbl>
+          <MnemonicGrid words={words} setWords={setWords} invalidIdx={invalidIdx} />
+          {phraseError && <Lbl className="mt-1 text-[var(--av-red)]">{phraseError}</Lbl>}
         </div>
         <div>
           <Lbl className="mb-[6px]">New Password</Lbl>
-          <input type="password" className={inputCls} {...form.register("password")} />
+          <input
+            type="password"
+            className={inputCls}
+            disabled={!phraseValid}
+            {...form.register("password")}
+          />
           {form.formState.errors.password && (
             <Lbl className="mt-1 text-[var(--av-red)]">
               {form.formState.errors.password.message}
@@ -194,7 +363,12 @@ export function ImportWallet() {
         </div>
         <div>
           <Lbl className="mb-[6px]">Confirm Password</Lbl>
-          <input type="password" className={inputCls} {...form.register("confirm")} />
+          <input
+            type="password"
+            className={inputCls}
+            disabled={!phraseValid}
+            {...form.register("confirm")}
+          />
           {form.formState.errors.confirm && (
             <Lbl className="mt-1 text-[var(--av-red)]">{form.formState.errors.confirm.message}</Lbl>
           )}

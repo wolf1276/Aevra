@@ -1,6 +1,6 @@
 // Wireframe design primitives — direct translations of the .dc.html classes.
 import type { ReactNode } from "react";
-import { useId, useMemo } from "react";
+import { useEffect, useId, useMemo, useRef } from "react";
 
 import { type AvatarStyle, DEFAULT_AVATAR_STYLE, generateAvatarSvg } from "@/lib/avatar";
 
@@ -250,6 +250,54 @@ export function Header({ title, onBack }: { title: string; onBack?: () => void }
         <Hd className="text-[13px]">{title}</Hd>
       </div>
     </>
+  );
+}
+
+/** Self-positioning dropdown: anchors under its trigger, closes on outside click/Escape. */
+export function Popover({
+  open,
+  onClose,
+  align = "left",
+  className,
+  children,
+}: {
+  open: boolean;
+  onClose: () => void;
+  align?: "left" | "right";
+  className?: string;
+  children: ReactNode;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onPointerDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open, onClose]);
+
+  if (!open) return null;
+  return (
+    <div
+      ref={ref}
+      role="menu"
+      className={cx(
+        "absolute top-full z-20 mt-2 min-w-[140px] rounded-[16px] border border-[var(--av-divider)] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)]",
+        align === "right" ? "right-0" : "left-0",
+        className,
+      )}
+    >
+      {children}
+    </div>
   );
 }
 
