@@ -23,7 +23,10 @@ export function Privacy() {
     <div className="flex flex-1 flex-col">
       <Header title="Privacy & Security" onBack={() => s.navigate({ name: "settings" })} />
       <div className="p-4 text-center">
-        <Circ size={72} className="mx-auto my-2 text-[24px]">
+        <Circ
+          size={72}
+          className="mx-auto my-2 border-none bg-[var(--av-red-tint)] text-[24px] text-[var(--av-red)] shadow-[0_0_0_8px_var(--av-glow)]"
+        >
           ✓
         </Circ>
         <div className="text-[15px] font-bold">Protected</div>
@@ -38,7 +41,7 @@ export function Privacy() {
           <Lbl>Viewer key for {account?.name}</Lbl>
           <div className="mt-1 text-[10px] break-all">{viewerKey}</div>
           <button
-            className="mt-2 cursor-pointer rounded-[10px] border border-[#ccc] px-3 py-1 text-[9px] font-bold uppercase"
+            className="mt-2 cursor-pointer rounded-[10px] border border-[var(--av-border)] px-3 py-1 text-[9px] font-bold uppercase hover:bg-[var(--av-red-tint)]"
             onClick={() => {
               void navigator.clipboard.writeText(viewerKey);
               s.showToast("Viewer key copied");
@@ -55,13 +58,16 @@ export function Privacy() {
       <div className="flex-1 overflow-y-auto px-4">
         {s.reveals.length === 0 && <Lbl className="py-2">Nothing disclosed yet</Lbl>}
         {s.reveals.slice(0, 3).map((r) => (
-          <div key={r.id} className="flex justify-between border-b border-[#eee] py-2 text-[11px]">
+          <div
+            key={r.id}
+            className="flex justify-between border-b border-[var(--av-divider)] py-2 text-[11px]"
+          >
             <div>{r.description}</div>
             <Lbl>{timeAgo(r.timestamp)}</Lbl>
           </div>
         ))}
         <button
-          className="mt-3 w-full cursor-pointer rounded-[12px] border border-[#ccc] py-2 text-[10px] font-bold"
+          className="mt-3 w-full cursor-pointer rounded-[12px] border border-[var(--av-border)] py-2 text-[10px] font-bold hover:bg-[var(--av-red-tint)]"
           onClick={() => s.navigate({ name: "backup" })}
         >
           Recovery Phrase →

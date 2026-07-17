@@ -3,7 +3,7 @@
 // One portfolio — public + confidential balances are merged per token.
 import { useState } from "react";
 
-import { BottomNav } from "@/components/BottomNav";
+import { AppLayout } from "@/components/AppLayout";
 import { ActivityRow, isInternalOp } from "@/components/screens/Activity";
 import { Box, Btn, Circ, Divider, DividerL, Hd, Lbl } from "@/components/ui";
 import { fmtUsd } from "@/lib/format";
@@ -42,7 +42,7 @@ function AssetRow({ symbol, sub, usd, onOpen, menu }: AssetRowProps) {
           {menu.map((m) => (
             <button
               key={m.label}
-              className="block w-full cursor-pointer border-b border-[#eee] px-3 py-2 text-left text-[10px] last:border-b-0"
+              className="block w-full cursor-pointer border-b-2 border-[var(--av-divider)] px-3 py-2 text-left text-[10px] last:border-b-0"
               onClick={() => {
                 setOpen(false);
                 m.action();
@@ -90,13 +90,18 @@ export function Assets() {
   const nav = s.navigate;
   const assets = useMergedAssets();
 
-  return (
-    <div className="flex flex-1 flex-col">
+  const header = (
+    <>
       <div className="px-4 py-[14px]">
         <Hd>Assets</Hd>
       </div>
       <Divider />
-      <div className="flex flex-1 flex-col gap-2 overflow-y-auto px-4 py-3">
+    </>
+  );
+
+  return (
+    <AppLayout header={header} showBottomNav activeTab="assets">
+      <div className="flex flex-col gap-2 px-4 py-3">
         {assets.map((a) => (
           <AssetRow
             key={a.symbol}
@@ -111,8 +116,47 @@ export function Assets() {
           />
         ))}
       </div>
-      <BottomNav active="assets" />
-    </div>
+    </AppLayout>
+  );
+}
+
+function useTokenHistory(symbol: string) {
+  const s = useWallet();
+  return [...s.shieldedActivity, ...s.history]
+    .filter((t) => !isInternalOp(t))
+    .filter((t) => t.symbol === symbol || t.symbol === `e${symbol}`)
+    .sort((a, b) => b.timestamp - a.timestamp);
+}
+
+export function TokenHistory({ symbol }: { symbol: string }) {
+  const s = useWallet();
+  const nav = s.navigate;
+  const history = useTokenHistory(symbol);
+
+  const header = (
+    <>
+      <div className="flex items-center gap-2 px-4 py-[14px]">
+        <button
+          className="cursor-pointer text-[13px] text-[var(--av-text-3)]"
+          onClick={() => nav({ name: "token", symbol })}
+        >
+          ←
+        </button>
+        <Hd>{symbol} History</Hd>
+      </div>
+      <Divider />
+    </>
+  );
+
+  return (
+    <AppLayout header={header} showBottomNav activeTab="assets">
+      <div className="flex flex-col px-4 py-2">
+        {history.length === 0 && <Lbl className="py-2">No transactions</Lbl>}
+        {history.map((tx) => (
+          <ActivityRow key={tx.hash} tx={tx} expandable />
+        ))}
+      </div>
+    </AppLayout>
   );
 }
 
@@ -120,17 +164,13 @@ export function TokenDetails({ symbol }: { symbol: string }) {
   const s = useWallet();
   const nav = s.navigate;
   const asset = useMergedAssets().find((a) => a.symbol === symbol);
+  const history = useTokenHistory(symbol);
 
-  const history = [...s.shieldedActivity, ...s.history]
-    .filter((t) => !isInternalOp(t))
-    .filter((t) => t.symbol === symbol || t.symbol === `e${symbol}`)
-    .sort((a, b) => b.timestamp - a.timestamp);
-
-  return (
-    <div className="flex flex-1 flex-col">
+  const header = (
+    <>
       <div className="flex items-center gap-2 px-4 py-[14px]">
         <button
-          className="cursor-pointer text-[13px] text-[#888]"
+          className="cursor-pointer text-[13px] text-[var(--av-text-3)]"
           onClick={() => nav({ name: "assets" })}
         >
           ←
@@ -138,6 +178,11 @@ export function TokenDetails({ symbol }: { symbol: string }) {
         <Hd>{symbol}</Hd>
       </div>
       <Divider />
+    </>
+  );
+
+  return (
+    <AppLayout header={header} showBottomNav activeTab="assets">
       <div className="p-[18px] text-center">
         <Circ size={40} ph className="mx-auto mb-2" />
         <div className="text-[22px] font-bold">
@@ -155,16 +200,13 @@ export function TokenDetails({ symbol }: { symbol: string }) {
         </Btn>
       </div>
       <DividerL />
-      <div className="px-4 pt-3 pb-1">
+      <button
+        className="flex cursor-pointer items-center justify-between px-4 py-3 text-left"
+        onClick={() => nav({ name: "token-history", symbol })}
+      >
         <Hd>Transaction History</Hd>
-      </div>
-      <div className="flex flex-1 flex-col overflow-y-auto px-4">
-        {history.length === 0 && <Lbl className="py-2">No transactions</Lbl>}
-        {history.map((tx) => (
-          <ActivityRow key={tx.hash} tx={tx} expandable />
-        ))}
-      </div>
-      <BottomNav active="assets" />
-    </div>
+        <Lbl>{history.length ? `${history.length} →` : "→"}</Lbl>
+      </button>
+    </AppLayout>
   );
 }

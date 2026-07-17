@@ -30,7 +30,16 @@ chrome.alarms.onAlarm.addListener((alarm) => {
   if (alarm.name === ALARM_NAME) keyring.lock();
 });
 
+const PRICE_MESSAGE = "aevra.price" as const;
+
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
+  if (msg?.type === PRICE_MESSAGE) {
+    fetch("https://api.coingecko.com/api/v3/simple/price?ids=avalanche-2&vs_currencies=usd")
+      .then((res) => res.json())
+      .then((json) => sendResponse({ ok: true, result: json }))
+      .catch((e) => sendResponse({ ok: false, error: String(e) }));
+    return true;
+  }
   if (!msg || msg.type !== KEYRING_MESSAGE) return undefined;
   (async () => {
     let response: KeyringResponse;

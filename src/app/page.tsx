@@ -3,7 +3,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { useEffect } from "react";
 
 import { Activity } from "@/components/screens/Activity";
-import { Assets, TokenDetails } from "@/components/screens/Assets";
+import { Assets, TokenDetails, TokenHistory } from "@/components/screens/Assets";
 import { Home } from "@/components/screens/Home";
 import {
   BackupPhrase,
@@ -35,6 +35,8 @@ function render(screen: Screen) {
       return <Assets />;
     case "token":
       return <TokenDetails symbol={screen.symbol} />;
+    case "token-history":
+      return <TokenHistory symbol={screen.symbol} />;
     case "send":
       return <Send symbol={screen.symbol} />;
     case "send-review":
@@ -66,7 +68,7 @@ export default function Popup() {
   if (!booted) return null;
 
   return (
-    <main className="relative flex h-[650px] w-[380px] flex-col overflow-hidden rounded-[16px] border border-[#ccc] bg-white">
+    <main className="relative flex h-[650px] w-[380px] flex-col overflow-hidden rounded-[16px] border border-[var(--av-border)] bg-white">
       <AnimatePresence mode="wait">
         <motion.div
           key={screen.name}

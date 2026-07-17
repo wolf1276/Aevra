@@ -8,9 +8,9 @@ import { AVATAR_STYLES, type AvatarStyle } from "@/lib/avatar";
 import { profileFor, useWallet, walletProvider } from "@/store/wallet";
 
 const rowCls =
-  "flex w-full cursor-pointer items-center justify-between border-b border-[#eee] py-[10px] text-[11px]";
+  "flex w-full cursor-pointer items-center justify-between border-b border-[var(--av-divider)] py-[10px] text-[11px]";
 const inputCls =
-  "w-full rounded-[12px] border border-[#e4e4e4] p-2 text-[12px] outline-none placeholder:text-[#aaa]";
+  "w-full rounded-[12px] border border-[var(--av-border)] p-2 text-[12px] outline-none placeholder:text-[var(--av-text-3)] focus:border-[var(--av-red)]";
 
 const AUTO_LOCK_OPTIONS = [1, 5, 15, 30, 60];
 
@@ -59,7 +59,7 @@ export function Settings() {
             {s.accounts.map((a) => (
               <button
                 key={a.index}
-                className="flex w-full cursor-pointer justify-between border-b border-[#eee] px-3 py-2 text-[11px]"
+                className="flex w-full cursor-pointer justify-between border-b border-[var(--av-divider)] px-3 py-2 text-[11px]"
                 onClick={() => s.setActiveIndex(a.index)}
               >
                 <div>
@@ -86,7 +86,7 @@ export function Settings() {
               <Avatar seed={profile.avatarSeed} style={profile.avatarStyle} size={48} />
               <button
                 type="button"
-                className="cursor-pointer text-[10px] text-[#888] underline"
+                className="cursor-pointer text-[10px] text-[var(--av-text-3)] underline"
                 onClick={() => s.regenerateAvatar(account.address)}
               >
                 Regenerate avatar
@@ -117,7 +117,9 @@ export function Settings() {
                       style={style}
                       size={36}
                       className={
-                        style === profile.avatarStyle ? "ring-2 ring-[#111] ring-offset-1" : ""
+                        style === profile.avatarStyle
+                          ? "ring-2 ring-[var(--av-red)] ring-offset-1"
+                          : ""
                       }
                     />
                   </button>
@@ -126,7 +128,7 @@ export function Settings() {
             </div>
             <button
               type="button"
-              className="cursor-pointer text-left text-[10px] text-[#b00]"
+              className="cursor-pointer text-left text-[10px] text-[var(--av-red)]"
               onClick={() => {
                 s.resetProfile(account.address);
                 setUsernameLocal("");
@@ -152,7 +154,9 @@ export function Settings() {
               key={id}
               onClick={() => s.setNetwork(id)}
               className={`flex-1 cursor-pointer rounded-[12px] border p-2 text-center text-[10px] capitalize ${
-                s.networkId === id ? "border-[#111] bg-[#111] text-white" : "border-[#e4e4e4]"
+                s.networkId === id
+                  ? "border-[var(--av-red)] bg-[var(--av-red)] text-white"
+                  : "border-[var(--av-border)]"
               }`}
             >
               {id === "fuji" ? "Fuji" : "Mainnet"}
@@ -183,7 +187,7 @@ export function Settings() {
             />
             {pwMsg && <Lbl>{pwMsg}</Lbl>}
             <button
-              className="cursor-pointer rounded-[12px] bg-[#111] py-2 text-[10px] font-bold text-white"
+              className="cursor-pointer rounded-[12px] bg-[var(--av-red)] py-2 text-[10px] font-bold text-white hover:bg-[var(--av-red-hover)]"
               onClick={changePassword}
             >
               Update Password
@@ -205,8 +209,8 @@ export function Settings() {
                 }}
                 className={`flex-1 cursor-pointer rounded-[12px] border p-2 text-center text-[10px] ${
                   s.autoLockMinutes === m
-                    ? "border-[#111] bg-[#111] text-white"
-                    : "border-[#e4e4e4]"
+                    ? "border-[var(--av-red)] bg-[var(--av-red)] text-white"
+                    : "border-[var(--av-border)]"
                 }`}
               >
                 {m}m
@@ -220,13 +224,13 @@ export function Settings() {
           <div>Developer Mode</div>
           <button
             onClick={() => s.setSetting("developerMode", !s.developerMode)}
-            className={`relative h-[18px] w-8 cursor-pointer rounded-[10px] border border-[#111] ${
-              s.developerMode ? "bg-[#111]" : ""
+            className={`relative h-[18px] w-8 cursor-pointer rounded-[10px] border border-[var(--av-red)] ${
+              s.developerMode ? "bg-[var(--av-red)]" : ""
             }`}
           >
             <div
               className={`absolute top-[2px] h-3 w-3 rounded-full ${
-                s.developerMode ? "right-[2px] bg-white" : "left-[2px] bg-[#111]"
+                s.developerMode ? "right-[2px] bg-white" : "left-[2px] bg-[var(--av-red)]"
               }`}
             />
           </button>

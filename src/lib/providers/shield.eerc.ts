@@ -35,28 +35,34 @@ import { walletProvider } from "./wallet";
 
 // ── Config ──────────────────────────────────────────────────────────────
 
+// Proof generation runs inside a Web Worker, where `window` is undefined
+// (workers only have `self`); snarkjs then misdetects Node.js and resolves
+// a root-relative path against `file://` instead of the page origin. An
+// absolute URL sidesteps that in both the main thread and the worker.
+const circuitBase = (typeof self !== "undefined" ? self.location.origin : "") + env.eercCircuitBase;
+
 const CIRCUITS = {
   register: {
-    wasm: `${env.eercCircuitBase}/RegistrationCircuit.wasm`,
-    zkey: `${env.eercCircuitBase}/RegistrationCircuit.groth16.zkey`,
+    wasm: `${circuitBase}/RegistrationCircuit.wasm`,
+    zkey: `${circuitBase}/RegistrationCircuit.groth16.zkey`,
   },
   transfer: {
-    wasm: `${env.eercCircuitBase}/TransferCircuit.wasm`,
-    zkey: `${env.eercCircuitBase}/TransferCircuit.groth16.zkey`,
+    wasm: `${circuitBase}/TransferCircuit.wasm`,
+    zkey: `${circuitBase}/TransferCircuit.groth16.zkey`,
   },
   mint: {
-    wasm: `${env.eercCircuitBase}/MintCircuit.wasm`,
-    zkey: `${env.eercCircuitBase}/MintCircuit.groth16.zkey`,
+    wasm: `${circuitBase}/MintCircuit.wasm`,
+    zkey: `${circuitBase}/MintCircuit.groth16.zkey`,
   },
   withdraw: {
-    wasm: `${env.eercCircuitBase}/WithdrawCircuit.wasm`,
-    zkey: `${env.eercCircuitBase}/WithdrawCircuit.groth16.zkey`,
+    wasm: `${circuitBase}/WithdrawCircuit.wasm`,
+    zkey: `${circuitBase}/WithdrawCircuit.groth16.zkey`,
   },
   // Burn circuit is standalone-mode only; never loaded in Converter Mode,
   // but the SDK's CircuitURLs type requires the entry.
   burn: {
-    wasm: `${env.eercCircuitBase}/BurnCircuit.wasm`,
-    zkey: `${env.eercCircuitBase}/BurnCircuit.groth16.zkey`,
+    wasm: `${circuitBase}/BurnCircuit.wasm`,
+    zkey: `${circuitBase}/BurnCircuit.groth16.zkey`,
   },
 } as const;
 

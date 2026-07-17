@@ -17,7 +17,12 @@
     "128": "icons/icon128.png"
   },
   "permissions": ["storage", "alarms"],
-  "host_permissions": [],
+  "host_permissions": [
+    "https://api.avax-test.network/*",
+    "https://api.avax.network/*",
+    "https://api.routescan.io/*",
+    "https://api.coingecko.com/*"
+  ],
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; connect-src 'self' https://api.avax-test.network https://api.avax.network https://*.avax-test.network https://*.avax.network https://api.routescan.io https://api.coingecko.com;"
   }

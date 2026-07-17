@@ -9,7 +9,12 @@ const cx = (...parts: (string | false | undefined)[]) => parts.filter(Boolean).j
 /** .lbl — 9px uppercase gray label */
 export function Lbl({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cx("text-[9px] font-medium tracking-[0.4px] text-[#888] uppercase", className)}>
+    <div
+      className={cx(
+        "text-[9px] font-medium tracking-[0.4px] text-[var(--av-text-3)] uppercase",
+        className,
+      )}
+    >
       {children}
     </div>
   );
@@ -21,10 +26,10 @@ export function Hd({ children, className }: { children: ReactNode; className?: s
 }
 
 /** .divider — full-width 1px light rule */
-export const Divider = () => <div className="h-px w-full shrink-0 bg-[#eee]" />;
+export const Divider = () => <div className="h-px w-full shrink-0 bg-[var(--av-divider)]" />;
 
 /** light rule used between sections (same treatment as .divider in the wireframe) */
-export const DividerL = () => <div className="h-px w-full shrink-0 bg-[#eee]" />;
+export const DividerL = () => <div className="h-px w-full shrink-0 bg-[var(--av-divider)]" />;
 
 /** .pill — bordered rounded chip */
 export function Pill({
@@ -40,7 +45,7 @@ export function Pill({
     <div
       onClick={onClick}
       className={cx(
-        "rounded-[20px] border border-[#ccc] px-[10px] py-[3px] text-center text-[9px] font-semibold",
+        "rounded-none border border-[var(--av-text)] px-[10px] py-[3px] text-center text-[9px] font-semibold",
         onClick && "cursor-pointer",
         className,
       )}
@@ -64,7 +69,7 @@ export function Box({
     <div
       onClick={onClick}
       className={cx(
-        "rounded-[14px] border border-[#e4e4e4] bg-white",
+        "rounded-none border border-[var(--av-text)] bg-white",
         onClick && "cursor-pointer",
         className,
       )}
@@ -93,8 +98,10 @@ export function Btn({
       onClick={onClick}
       disabled={disabled}
       className={cx(
-        "rounded-[12px] py-[12px] text-center text-[12px] font-semibold",
-        primary ? "bg-[#111] text-white" : "border border-[#ccc] text-[#111]",
+        "rounded-none py-[12px] text-center text-[12px] font-semibold transition-colors duration-150",
+        primary
+          ? "bg-[var(--av-red)] text-white hover:bg-[var(--av-red-hover)] active:bg-[var(--av-red-press)]"
+          : "border border-[var(--av-text)] text-[var(--av-text)] hover:bg-[var(--av-red-tint)]",
         disabled ? "cursor-not-allowed opacity-40" : "cursor-pointer",
         className,
       )}
@@ -120,7 +127,7 @@ export function Circ({
     <div
       style={{ width: size, height: size }}
       className={cx(
-        "flex shrink-0 items-center justify-center rounded-full border border-[#ccc] bg-[#f4f4f4]",
+        "flex shrink-0 items-center justify-center rounded-none border-2 border-[var(--av-text)] bg-[var(--av-bg-2)]",
         ph &&
           "border-dashed border-[#999] [background:repeating-linear-gradient(45deg,#f2f2f2,#f2f2f2_4px,#e4e4e4_4px,#e4e4e4_8px)]",
         className,
@@ -170,7 +177,7 @@ export function Avatar({
       onClick={onClick}
       style={{ width: size, height: size }}
       className={cx(
-        "shrink-0 overflow-hidden rounded-full border border-[#ccc] bg-[#f4f4f4] [&>svg]:h-full [&>svg]:w-full",
+        "shrink-0 overflow-hidden rounded-none border-2 border-[var(--av-text)] bg-[var(--av-bg-2)] [&>svg]:h-full [&>svg]:w-full",
         onClick && "cursor-pointer",
         className,
       )}
@@ -180,12 +187,43 @@ export function Avatar({
   );
 }
 
+/** Aevra mascot — floats per the design doc's `mascotfloat` keyframe */
+export function Mascot({ size = 84, className }: { size?: number; className?: string }) {
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img
+      src="/mascot.png"
+      alt="Aevra mascot"
+      style={{ width: size, height: size, animation: "mascotfloat 2.4s ease-in-out infinite" }}
+      className={cx("object-contain", className)}
+    />
+  );
+}
+
+/** .spinner — accent-topped ring spinner */
+export function Spinner({ size = 22 }: { size?: number }) {
+  return (
+    <div
+      style={{
+        width: size,
+        height: size,
+        borderWidth: Math.max(2, Math.round(size / 7)),
+        borderStyle: "solid",
+        borderColor: "var(--av-divider)",
+        borderTopColor: "var(--av-red)",
+        animation: "spin 0.9s linear infinite",
+      }}
+      className="rounded-full"
+    />
+  );
+}
+
 /** .slot — hatched placeholder panel */
 export function Ph({ children, className }: { children: ReactNode; className?: string }) {
   return (
     <div
       className={cx(
-        "rounded-[12px] border border-dashed border-[#bbb] [background:repeating-linear-gradient(45deg,#f2f2f2,#f2f2f2_4px,#e4e4e4_4px,#e4e4e4_8px)]",
+        "rounded-none border border-dashed border-[#bbb] [background:repeating-linear-gradient(45deg,#f2f2f2,#f2f2f2_4px,#e4e4e4_4px,#e4e4e4_8px)]",
         className,
       )}
     >
@@ -200,7 +238,7 @@ export function Header({ title, onBack }: { title: string; onBack?: () => void }
     <>
       <div className="flex items-center gap-2 px-[18px] py-[14px]">
         {onBack && (
-          <button onClick={onBack} className="cursor-pointer text-[13px] text-[#888]">
+          <button onClick={onBack} className="cursor-pointer text-[13px] text-[var(--av-text-3)]">
             ←
           </button>
         )}

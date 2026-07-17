@@ -5,12 +5,13 @@ import { isAddress } from "ethers";
 import QRCode from "qrcode";
 import { useEffect, useState } from "react";
 
+import { AppLayout } from "@/components/AppLayout";
 import { Box, Btn, Circ, Divider, Hd, Header, Lbl, Pill, shortAddr } from "@/components/ui";
 import type { ShieldProgress } from "@/lib/providers/types";
 import { shieldProvider, useWallet } from "@/store/wallet";
 
 const inputCls =
-  "w-full rounded-[12px] border border-[#e4e4e4] p-3 text-[12px] outline-none placeholder:text-[#aaa]";
+  "w-full rounded-none border border-[var(--av-text)] p-3 text-[12px] outline-none placeholder:text-[var(--av-text-3)] focus:border-[var(--av-red)]";
 
 // User-facing labels for internal protocol steps
 const STEP_LABEL: Record<ShieldProgress["step"], string> = {
@@ -43,9 +44,21 @@ export function Send({ symbol }: { symbol?: string }) {
     s.navigate({ name: "send-review" });
   };
 
+  const header = <Header title="Send" onBack={() => s.navigate({ name: "home" })} />;
+
+  const footer = (
+    <>
+      <Divider />
+      <div className="p-4">
+        <Btn primary className="w-full" onClick={review}>
+          Review
+        </Btn>
+      </div>
+    </>
+  );
+
   return (
-    <div className="flex flex-1 flex-col">
-      <Header title="Send" onBack={() => s.navigate({ name: "home" })} />
+    <AppLayout header={header} footer={footer}>
       <div className="flex flex-col gap-[14px] p-4">
         <div>
           <Lbl>Recipient</Lbl>
@@ -58,7 +71,7 @@ export function Send({ symbol }: { symbol?: string }) {
         </div>
         <div>
           <Lbl>Amount</Lbl>
-          <div className="mt-1 flex items-center rounded-[12px] border border-[#e4e4e4] p-3">
+          <div className="mt-1 flex items-center rounded-none border border-[var(--av-text)] p-3">
             <input
               className="w-full text-[18px] font-bold outline-none"
               placeholder="0.00"
@@ -69,16 +82,9 @@ export function Send({ symbol }: { symbol?: string }) {
             <Lbl>{sendSymbol}</Lbl>
           </div>
         </div>
-        {error && <Lbl className="text-[#111]">{error}</Lbl>}
+        {error && <Lbl className="text-[var(--av-red)]">{error}</Lbl>}
       </div>
-      <div className="flex-1" />
-      <Divider />
-      <div className="p-4">
-        <Btn primary className="w-full" onClick={review}>
-          Review
-        </Btn>
-      </div>
-    </div>
+    </AppLayout>
   );
 }
 
@@ -115,9 +121,24 @@ export function SendReview() {
     }
   };
 
+  const header = <Header title="Review" onBack={() => s.navigate({ name: "send" })} />;
+
+  const footer = (
+    <>
+      <Divider />
+      <div className="flex gap-2 p-4">
+        <Btn className="flex-1" disabled={busy} onClick={() => s.navigate({ name: "send" })}>
+          Cancel
+        </Btn>
+        <Btn primary className="flex-[2]" disabled={busy} onClick={confirm}>
+          {busy ? "Sending…" : "Send"}
+        </Btn>
+      </div>
+    </>
+  );
+
   return (
-    <div className="flex flex-1 flex-col">
-      <Header title="Review" onBack={() => s.navigate({ name: "send" })} />
+    <AppLayout header={header} footer={footer}>
       <div className="flex flex-col gap-[10px] p-4">
         <div className="flex justify-between">
           <Lbl>To</Lbl>
@@ -133,7 +154,7 @@ export function SendReview() {
           <Lbl>Privacy</Lbl>
           <Pill>Protected</Pill>
         </div>
-        <div className="h-px w-full bg-[#bbb]" />
+        <div className="h-px w-full bg-[var(--av-divider)]" />
         <div className="flex justify-between">
           <Lbl>Network Fee</Lbl>
           <div className="text-[11px]">{p.fee} AVAX</div>
@@ -141,27 +162,17 @@ export function SendReview() {
         {progress && (
           <div className="mt-2">
             <Lbl className="mb-1">{STEP_LABEL[progress.step]}</Lbl>
-            <div className="h-[6px] w-full rounded-full bg-[#eee]">
+            <div className="h-[6px] w-full rounded-full bg-[var(--av-divider)]">
               <div
-                className="h-full rounded-full bg-[#111] transition-all"
+                className="h-full rounded-full bg-[var(--av-red)] transition-all"
                 style={{ width: `${progress.percent}%` }}
               />
             </div>
           </div>
         )}
-        {error && <Lbl className="text-[#111]">{error}</Lbl>}
+        {error && <Lbl className="text-[var(--av-red)]">{error}</Lbl>}
       </div>
-      <div className="flex-1" />
-      <Divider />
-      <div className="flex gap-2 p-4">
-        <Btn className="flex-1" disabled={busy} onClick={() => s.navigate({ name: "send" })}>
-          Cancel
-        </Btn>
-        <Btn primary className="flex-[2]" disabled={busy} onClick={confirm}>
-          {busy ? "Sending…" : "Send"}
-        </Btn>
-      </div>
-    </div>
+    </AppLayout>
   );
 }
 
@@ -170,7 +181,10 @@ export function SendSuccess() {
   const r = s.lastResult;
   return (
     <div className="flex flex-1 flex-col items-center justify-center p-6 text-center">
-      <Circ size={64} className="mb-4 text-[24px]">
+      <Circ
+        size={64}
+        className="mb-4 border-none bg-[var(--av-red-tint)] text-[24px] text-[var(--av-red)]"
+      >
         ✓
       </Circ>
       <Hd className="text-[15px]">Completed</Hd>
@@ -198,15 +212,16 @@ export function Receive() {
     if (address) void QRCode.toDataURL(address, { width: 140, margin: 1 }).then(setQr);
   }, [address]);
 
+  const header = <Header title="Receive" onBack={() => s.navigate({ name: "home" })} />;
+
   return (
-    <div className="flex flex-1 flex-col">
-      <Header title="Receive" onBack={() => s.navigate({ name: "home" })} />
+    <AppLayout header={header}>
       <div className="flex flex-1 flex-col items-center p-6 text-center">
         <Lbl>Your wallet address</Lbl>
         {qr && (
           /* eslint-disable-next-line @next/next/no-img-element -- data URI */
           <img
-            className="mt-3 h-[140px] w-[140px] rounded-[12px] border border-[#e4e4e4]"
+            className="mt-3 h-[140px] w-[140px] rounded-none border border-[var(--av-text)]"
             alt="QR code"
             src={qr}
           />
@@ -224,6 +239,6 @@ export function Receive() {
           {copied ? "Copied ✓" : "Copy Address"}
         </Btn>
       </div>
-    </div>
+    </AppLayout>
   );
 }

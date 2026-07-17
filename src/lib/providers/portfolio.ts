@@ -6,8 +6,25 @@ import { withRetry } from "@/lib/rpc-retry";
 import type { NetworkInfo, PortfolioProvider, TokenBalance } from "./types";
 
 const ERC20_ABI = ["function balanceOf(address) view returns (uint256)"];
+const PRICE_MESSAGE = "aevra.price" as const;
+const hasExtensionRuntime = typeof chrome !== "undefined" && !!chrome.runtime?.id;
 
 let cachedPrice: { value: number; at: number } | null = null;
+
+// Popup-context fetch to CoinGecko hits real CORS (extension pages don't get
+// the host_permissions bypass that background service workers get), so route
+// through the background worker there; `next dev` has no extension runtime.
+async function fetchAvaxPrice(): Promise<{ "avalanche-2": { usd: number } }> {
+  if (!hasExtensionRuntime) {
+    const res = await fetch(
+      "https://api.coingecko.com/api/v3/simple/price?ids=avalanche-2&vs_currencies=usd",
+    );
+    return res.json();
+  }
+  const response = await chrome.runtime.sendMessage({ type: PRICE_MESSAGE });
+  if (!response.ok) throw new Error(response.error);
+  return response.result;
+}
 
 export class RpcPortfolioProvider implements PortfolioProvider {
   async getNativeBalance(address: string, network: NetworkInfo): Promise<bigint> {
@@ -40,12 +57,7 @@ export class RpcPortfolioProvider implements PortfolioProvider {
   async getAvaxUsdPrice(): Promise<number> {
     if (cachedPrice && Date.now() - cachedPrice.at < 60_000) return cachedPrice.value;
     try {
-      const json = await withRetry(async () => {
-        const res = await fetch(
-          "https://api.coingecko.com/api/v3/simple/price?ids=avalanche-2&vs_currencies=usd",
-        );
-        return res.json();
-      });
+      const json = await withRetry(fetchAvaxPrice);
       cachedPrice = { value: json["avalanche-2"].usd, at: Date.now() };
     } catch {
       cachedPrice = { value: cachedPrice?.value ?? 25, at: Date.now() }; // stale/fallback price

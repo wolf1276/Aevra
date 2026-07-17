@@ -52,7 +52,7 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
   const lastIndex = s.accounts.length - 1;
 
   return (
-    <Box className="absolute top-[48px] left-4 z-10 w-[260px] bg-white shadow-[0_8px_24px_rgba(0,0,0,0.12)]">
+    <Box className="absolute top-[48px] left-4 z-10 w-[260px] border-2 border-[var(--av-text)] bg-white">
       <div className="max-h-[280px] overflow-y-auto">
         {s.accounts.map((a) => {
           const active = a.index === s.activeIndex;
@@ -60,7 +60,7 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
           return (
             <div
               key={a.index}
-              className={`border-b border-[#eee] px-3 py-2 ${active ? "bg-[#f2f2f2]" : ""}`}
+              className={`border-b-2 border-[var(--av-divider)] px-3 py-2 ${active ? "bg-[var(--av-red-tint)]" : ""}`}
             >
               <div className="flex items-center justify-between gap-2">
                 <button
@@ -75,7 +75,7 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
                     {renaming === a.index ? (
                       <input
                         autoFocus
-                        className="w-full rounded-[6px] border border-[#ccc] px-1 py-[1px] text-[11px] font-bold outline-none"
+                        className="w-full rounded-none border border-[var(--av-text)] px-1 py-[1px] text-[11px] font-bold outline-none"
                         value={renameValue}
                         onClick={(e) => e.stopPropagation()}
                         onChange={(e) => setRenameValue(e.target.value)}
@@ -91,21 +91,21 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
                         {active && <span aria-label="active account">●</span>}
                       </div>
                     )}
-                    <div className="text-[9px] text-[#888]">
+                    <div className="text-[9px] text-[var(--av-text-3)]">
                       {fmtUnits(balances[a.address] ?? 0n, 18)} {NETWORKS[s.networkId].nativeSymbol}
                     </div>
                   </div>
                 </button>
                 <div className="flex shrink-0 items-center gap-2">
                   <button
-                    className="cursor-pointer text-[9px] text-[#888] hover:text-[#111]"
+                    className="cursor-pointer text-[9px] text-[var(--av-text-3)] hover:text-[var(--av-red)]"
                     onClick={() => startRename(a)}
                     aria-label={`Rename ${a.name}`}
                   >
                     ✎
                   </button>
                   <button
-                    className="cursor-pointer text-[9px] text-[#888] hover:text-[#111]"
+                    className="cursor-pointer text-[9px] text-[var(--av-text-3)] hover:text-[var(--av-red)]"
                     onClick={() => copy(a.address)}
                     aria-label={`Copy address for ${a.name}`}
                   >
@@ -115,7 +115,7 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
               </div>
               {canRemoveLast && a.index === lastIndex && (
                 <button
-                  className="mt-1 cursor-pointer text-[9px] text-[#b00]"
+                  className="mt-1 cursor-pointer text-[9px] text-[var(--av-red)]"
                   onClick={() => void s.removeLastAccount()}
                 >
                   Remove account
@@ -126,7 +126,7 @@ export function AccountSwitcher({ onClose }: { onClose: () => void }) {
         })}
       </div>
       <button
-        className="block w-full cursor-pointer border-b border-[#eee] px-3 py-2 text-left text-[11px]"
+        className="block w-full cursor-pointer border-b-2 border-[var(--av-divider)] px-3 py-2 text-left text-[11px]"
         onClick={() => void s.addAccount()}
       >
         + Add Account

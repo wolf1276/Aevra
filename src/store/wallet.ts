@@ -27,6 +27,7 @@ export type Screen =
   | { name: "home" }
   | { name: "assets" }
   | { name: "token"; symbol: string }
+  | { name: "token-history"; symbol: string }
   | { name: "send"; symbol?: string }
   | { name: "send-review" }
   | { name: "send-success" }

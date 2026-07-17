@@ -2,7 +2,7 @@
 // 07 · Activity Screen (+ shared activity row and reveal/proof actions)
 import { useState } from "react";
 
-import { BottomNav } from "@/components/BottomNav";
+import { AppLayout } from "@/components/AppLayout";
 import { Box, Circ, Divider, Hd, Lbl, timeAgo } from "@/components/ui";
 import type { TxRecord } from "@/lib/providers/types";
 import { privacyProvider, useWallet } from "@/store/wallet";
@@ -67,7 +67,7 @@ export function ActivityRow({ tx, expandable }: { tx: TxRecord; expandable?: boo
   };
 
   return (
-    <div className="border-b border-[#eee]">
+    <div className="border-b-2 border-[var(--av-divider)]">
       <div
         className="flex cursor-pointer items-center gap-2 py-2"
         onClick={() => (expandable ?? true) && setOpen((v) => !v)}
@@ -116,14 +116,14 @@ export function ActivityRow({ tx, expandable }: { tx: TxRecord; expandable?: boo
               {!tx.revealed && (
                 <button
                   onClick={reveal}
-                  className="flex-1 cursor-pointer rounded-[10px] border border-[#ccc] py-1 text-[9px] font-bold uppercase"
+                  className="flex-1 cursor-pointer rounded-none border border-[var(--av-text)] py-1 text-[9px] font-bold uppercase"
                 >
                   {busy === "reveal" ? "Revealing…" : "Reveal Amount"}
                 </button>
               )}
               <button
                 onClick={genProof}
-                className="flex-1 cursor-pointer border border-[#111] py-1 text-[9px] font-bold uppercase"
+                className="flex-1 cursor-pointer rounded-none border border-[var(--av-red)] py-1 text-[9px] font-bold text-[var(--av-red)] uppercase"
               >
                 {busy === "proof" ? "Generating…" : "Generate Proof"}
               </button>
@@ -160,13 +160,18 @@ export function Activity() {
     else groups.push({ label, txs: [tx] });
   }
 
-  return (
-    <div className="flex flex-1 flex-col">
+  const header = (
+    <>
       <div className="px-4 py-[14px]">
         <Hd>Activity</Hd>
       </div>
       <Divider />
-      <div className="flex flex-1 flex-col overflow-y-auto px-4 py-2">
+    </>
+  );
+
+  return (
+    <AppLayout header={header} showBottomNav activeTab="activity">
+      <div className="flex flex-col px-4 py-2">
         {filtered.length === 0 && <Lbl className="py-2">No transactions</Lbl>}
         {groups.map((g) => (
           <div key={g.label}>
@@ -177,7 +182,6 @@ export function Activity() {
           </div>
         ))}
       </div>
-      <BottomNav active="activity" />
-    </div>
+    </AppLayout>
   );
 }

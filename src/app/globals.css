@@ -1,13 +1,41 @@
 @import "tailwindcss";
 
-/* Wireframe spec: 380×650, white, Helvetica Neue, grayscale */
+/* Avalanche brand theme */
+:root {
+  --av-red: #e84142;
+  --av-red-hover: #ff5a5f;
+  --av-red-press: #cf3536;
+  --av-red-accent: #ff7075;
+  --av-red-tint: #fdeceb;
+  --av-bg: #ffffff;
+  --av-bg-2: #fafafa;
+  --av-border: #ececec;
+  --av-divider: #f2f2f2;
+  --av-text: #111111;
+  --av-text-2: #666666;
+  --av-text-3: #999999;
+  --av-success: #16a34a;
+  --av-warning: #f59e0b;
+  --av-glow: rgba(232, 65, 66, 0.28);
+}
+
 html,
 body {
   width: 380px;
   height: 650px;
   margin: 0;
-  background: #fff;
-  color: #111;
-  font-family: "Helvetica Neue", Arial, sans-serif;
+  background: var(--av-bg);
+  color: var(--av-text);
+  font-family: -apple-system, "Inter", "Helvetica Neue", Arial, sans-serif;
   overflow: hidden;
+}
+
+@keyframes float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
 }

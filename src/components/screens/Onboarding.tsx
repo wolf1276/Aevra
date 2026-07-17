@@ -22,7 +22,7 @@ const passwordSchema = z
   });
 
 const inputCls =
-  "w-full rounded-[12px] border border-[#e4e4e4] p-3 text-[12px] outline-none placeholder:text-[#aaa]";
+  "w-full rounded-[12px] border border-[var(--av-border)] p-3 text-[12px] outline-none placeholder:text-[var(--av-text-3)] focus:border-[var(--av-red)]";
 
 export function Welcome() {
   const navigate = useWallet((s) => s.navigate);
@@ -72,7 +72,7 @@ export function CreateWallet() {
             <Box className="grid grid-cols-3 gap-1 p-3">
               {mnemonic.split(" ").map((w, i) => (
                 <div key={i} className="text-[10px]">
-                  <span className="text-[#999]">{i + 1}.</span> {w}
+                  <span className="text-[var(--av-text-3)]">{i + 1}.</span> {w}
                 </div>
               ))}
             </Box>
@@ -88,17 +88,19 @@ export function CreateWallet() {
           <Lbl className="mb-[6px]">Password</Lbl>
           <input type="password" className={inputCls} {...form.register("password")} />
           {form.formState.errors.password && (
-            <Lbl className="mt-1 text-[#111]">{form.formState.errors.password.message}</Lbl>
+            <Lbl className="mt-1 text-[var(--av-red)]">
+              {form.formState.errors.password.message}
+            </Lbl>
           )}
         </div>
         <div>
           <Lbl className="mb-[6px]">Confirm Password</Lbl>
           <input type="password" className={inputCls} {...form.register("confirm")} />
           {form.formState.errors.confirm && (
-            <Lbl className="mt-1 text-[#111]">{form.formState.errors.confirm.message}</Lbl>
+            <Lbl className="mt-1 text-[var(--av-red)]">{form.formState.errors.confirm.message}</Lbl>
           )}
         </div>
-        {error && <Lbl className="text-[#111]">{error}</Lbl>}
+        {error && <Lbl className="text-[var(--av-red)]">{error}</Lbl>}
         <div className="flex-1" />
         <Btn primary disabled={!revealed || busy}>
           {busy ? "Creating…" : "Create Wallet"}
@@ -146,24 +148,28 @@ export function ImportWallet() {
           <Lbl className="mb-[6px]">Recovery Phrase</Lbl>
           <textarea rows={3} className={inputCls} {...form.register("mnemonic")} />
           {form.formState.errors.mnemonic && (
-            <Lbl className="mt-1 text-[#111]">{form.formState.errors.mnemonic.message}</Lbl>
+            <Lbl className="mt-1 text-[var(--av-red)]">
+              {form.formState.errors.mnemonic.message}
+            </Lbl>
           )}
         </div>
         <div>
           <Lbl className="mb-[6px]">New Password</Lbl>
           <input type="password" className={inputCls} {...form.register("password")} />
           {form.formState.errors.password && (
-            <Lbl className="mt-1 text-[#111]">{form.formState.errors.password.message}</Lbl>
+            <Lbl className="mt-1 text-[var(--av-red)]">
+              {form.formState.errors.password.message}
+            </Lbl>
           )}
         </div>
         <div>
           <Lbl className="mb-[6px]">Confirm Password</Lbl>
           <input type="password" className={inputCls} {...form.register("confirm")} />
           {form.formState.errors.confirm && (
-            <Lbl className="mt-1 text-[#111]">{form.formState.errors.confirm.message}</Lbl>
+            <Lbl className="mt-1 text-[var(--av-red)]">{form.formState.errors.confirm.message}</Lbl>
           )}
         </div>
-        {error && <Lbl className="text-[#111]">{error}</Lbl>}
+        {error && <Lbl className="text-[var(--av-red)]">{error}</Lbl>}
         <div className="flex-1" />
         <Btn primary disabled={busy}>
           {busy ? "Importing…" : "Import Wallet"}
@@ -206,7 +212,7 @@ export function Unlock() {
         className={`${inputCls} mt-6 w-[220px] text-center`}
         placeholder="Password"
       />
-      {error && <Lbl className="mt-2 text-[#111]">{error}</Lbl>}
+      {error && <Lbl className="mt-2 text-[var(--av-red)]">{error}</Lbl>}
       <Btn primary className="mt-4 w-[220px]" disabled={busy || !password}>
         {busy ? "Unlocking…" : "Unlock"}
       </Btn>
@@ -235,7 +241,7 @@ export function Personalize() {
         <Avatar seed={profile.avatarSeed} style={profile.avatarStyle} size={72} />
         <button
           type="button"
-          className="cursor-pointer text-[10px] text-[#888] underline"
+          className="cursor-pointer text-[10px] text-[var(--av-text-3)] underline"
           onClick={() => s.regenerateAvatar(account.address)}
         >
           Regenerate avatar
@@ -265,7 +271,7 @@ export function Personalize() {
                   style={style}
                   size={40}
                   className={
-                    style === profile.avatarStyle ? "ring-2 ring-[#111] ring-offset-1" : ""
+                    style === profile.avatarStyle ? "ring-2 ring-[var(--av-red)] ring-offset-1" : ""
                   }
                 />
               </button>
@@ -302,7 +308,7 @@ export function BackupPhrase() {
           <Box className="grid grid-cols-3 gap-1 p-3">
             {mnemonic.split(" ").map((w, i) => (
               <div key={i} className="text-[10px]">
-                <span className="text-[#999]">{i + 1}.</span> {w}
+                <span className="text-[var(--av-text-3)]">{i + 1}.</span> {w}
               </div>
             ))}
           </Box>
