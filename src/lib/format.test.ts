@@ -17,7 +17,13 @@ describe("format", () => {
     expect(parseUnits("0.000001", 6)).toBe(1n);
     expect(parseUnits("", 6)).toBe(0n);
     expect(parseUnits("2", 0)).toBe(2n);
-    // truncates excess precision, never rounds up
-    expect(parseUnits("1.9999999", 6)).toBe(1_999_999n);
+    // trailing zeros beyond supported precision are fine
+    expect(parseUnits("1.500000", 6)).toBe(1_500_000n);
+  });
+
+  it("parseUnits rejects unsupported precision instead of truncating", () => {
+    expect(() => parseUnits("0.001", 2)).toThrow("This token supports at most 2 decimal places.");
+    expect(() => parseUnits("1.9999999", 6)).toThrow("at most 6 decimal places");
+    expect(() => parseUnits("0.1", 0)).toThrow("at most 0 decimal places");
   });
 });

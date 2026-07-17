@@ -8,6 +8,11 @@ export function fmtUsd(value: number): string {
 
 export function parseUnits(value: string, decimals: number): bigint {
   const [whole = "0", frac = ""] = value.split(".");
+  if (frac.slice(decimals).replace(/0+$/, "").length > 0) {
+    throw new Error(
+      `This token supports at most ${decimals} decimal place${decimals === 1 ? "" : "s"}.`,
+    );
+  }
   const fracPadded = (frac + "0".repeat(decimals)).slice(0, decimals);
   return BigInt(whole || "0") * 10n ** BigInt(decimals) + BigInt(fracPadded || "0");
 }

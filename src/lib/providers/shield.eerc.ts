@@ -133,10 +133,32 @@ async function step<T>(name: string, fn: () => Promise<T>): Promise<T> {
   }
 }
 
+/** Errors carrying their own user-facing message — passed through normalizeError untouched. */
+const SURFACE_VERBATIM = [
+  "The confidential payment system is not configured correctly.",
+  /^Unable to verify registration status:/,
+  /^Registration failed:/,
+  /^This token supports at most /,
+];
+
+async function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  let timer: ReturnType<typeof setTimeout>;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(message)), ms);
+  });
+  try {
+    return await Promise.race([promise, timeout]);
+  } finally {
+    clearTimeout(timer!);
+  }
+}
+
 function normalizeError(e: unknown): Error {
   console.error("send pipeline error:", e); // raw cause for debugging — user sees friendly text
   dumpFullError("normalizeError", e);
   const msg = e instanceof Error ? e.message : String(e);
+  if (SURFACE_VERBATIM.some((m) => (typeof m === "string" ? m === msg : m.test(msg))))
+    return new Error(msg);
   if (/user rejected|denied|4001/i.test(msg)) return new Error("Transaction rejected");
   if (/insufficient funds|insufficient balance/i.test(msg))
     return new Error("Insufficient balance");
@@ -296,6 +318,15 @@ export class EERCConverterProvider implements ShieldProvider {
       }),
     ]);
 
+    const auditorPublicKey = (rawAuditorKey as readonly bigint[]).map((v) => BigInt(v));
+    const isZeroPoint = auditorPublicKey.length === 0 || auditorPublicKey.every((v) => v === 0n);
+    const isValidPoint =
+      auditorPublicKey.length === 2 &&
+      eerc.curve.inCurve([auditorPublicKey[0], auditorPublicKey[1]]);
+    if (isZeroPoint || !isValidPoint) {
+      throw new Error("The confidential payment system is not configured correctly.");
+    }
+
     const session: Session = {
       eerc,
       client,
@@ -303,7 +334,7 @@ export class EERCConverterProvider implements ShieldProvider {
       chain,
       network,
       eercDecimals: BigInt(rawDecimals as number | bigint),
-      auditorPublicKey: (rawAuditorKey as readonly bigint[]).map((v) => BigInt(v)),
+      auditorPublicKey,
       registered: false,
     };
     await this.registerUserIfNeeded(address, session);
@@ -314,25 +345,49 @@ export class EERCConverterProvider implements ShieldProvider {
   /** Register the user's BabyJubJub public key with the Registrar if absent. */
   private async registerUserIfNeeded(address: string, session: Session): Promise<void> {
     if (session.registered) return;
-    const isRegistered = (await step(`isUserRegistered(${address})`, () =>
-      session.client.readContract({
-        address: session.network.registrarAddress as `0x${string}`,
-        abi: session.eerc.registrarAbi,
-        functionName: "isUserRegistered",
-        args: [address as `0x${string}`],
-      }),
-    )) as boolean;
-    if (!isRegistered) {
-      const { transactionHash } = await step("registerUserIfNeeded:register", () =>
-        session.eerc.register(),
+    let isRegistered: boolean;
+    try {
+      isRegistered = (await withTimeout(
+        step(`isUserRegistered(${address})`, () =>
+          session.client.readContract({
+            address: session.network.registrarAddress as `0x${string}`,
+            abi: session.eerc.registrarAbi,
+            functionName: "isUserRegistered",
+            args: [address as `0x${string}`],
+          }),
+        ),
+        15_000,
+        "Timed out checking registration status.",
+      )) as boolean;
+    } catch (e) {
+      throw new Error(
+        `Unable to verify registration status: ${e instanceof Error ? e.message : String(e)}`,
+      );
+    }
+    if (isRegistered) {
+      session.registered = true;
+      return;
+    }
+    try {
+      const { transactionHash } = await withTimeout(
+        step("registerUserIfNeeded:register", () => session.eerc.register()),
+        60_000,
+        "Timed out generating the registration proof.",
       );
       if (transactionHash) {
-        await step("registerUserIfNeeded:waitForTransactionReceipt", () =>
-          session.client.waitForTransactionReceipt({
-            hash: transactionHash as `0x${string}`,
-          }),
+        await withTimeout(
+          step("registerUserIfNeeded:waitForTransactionReceipt", () =>
+            session.client.waitForTransactionReceipt({
+              hash: transactionHash as `0x${string}`,
+              timeout: 60_000,
+            }),
+          ),
+          65_000,
+          "Timed out waiting for the registration transaction to confirm.",
         );
       }
+    } catch (e) {
+      throw new Error(`Registration failed: ${e instanceof Error ? e.message : String(e)}`);
     }
     session.registered = true;
   }
