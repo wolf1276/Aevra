@@ -99,6 +99,7 @@ export function Btn({
       disabled={disabled}
       className={cx(
         "rounded-none py-[12px] text-center text-[12px] font-semibold transition-colors duration-150",
+        "outline-none focus-visible:ring-2 focus-visible:ring-[var(--av-red)] focus-visible:ring-offset-1",
         primary
           ? "bg-[var(--av-red)] text-white hover:bg-[var(--av-red-hover)] active:bg-[var(--av-red-press)]"
           : "border border-[var(--av-text)] text-[var(--av-text)] hover:bg-[var(--av-red-tint)]",
@@ -238,7 +239,11 @@ export function Header({ title, onBack }: { title: string; onBack?: () => void }
     <>
       <div className="flex items-center gap-2 px-[18px] py-[14px]">
         {onBack && (
-          <button onClick={onBack} className="cursor-pointer text-[13px] text-[var(--av-text-3)]">
+          <button
+            onClick={onBack}
+            aria-label="Back"
+            className="cursor-pointer text-[13px] text-[var(--av-text-3)] outline-none focus-visible:ring-2 focus-visible:ring-[var(--av-red)] focus-visible:ring-offset-1"
+          >
             ←
           </button>
         )}
