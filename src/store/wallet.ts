@@ -1,5 +1,6 @@
 import { create } from "zustand";
 
+import { env } from "@/config/env";
 import { NETWORKS } from "@/config/networks";
 import { type AvatarStyle, DEFAULT_AVATAR_STYLE } from "@/lib/avatar";
 import { LockedError } from "@/lib/keyring/protocol";
@@ -60,7 +61,6 @@ export interface PendingSend {
   to: string;
   amount: string; // decimal string
   symbol: string;
-  fee: string; // formatted AVAX
 }
 
 export interface Contact {
@@ -163,10 +163,15 @@ export const useWallet = create<WalletState>((set, get) => ({
     }
     if (profilesRaw) set({ profiles: JSON.parse(profilesRaw) });
     if (contactsRaw) set({ contacts: JSON.parse(contactsRaw) });
+    const network = NETWORKS[get().networkId];
+    shieldProvider.setNetwork(network);
+    privacyProvider.setNetwork(network);
     set({ booted: true, screen: { name: has ? "unlock" : "welcome" } });
   },
 
   navigate(screen) {
+    // Confidential routes don't exist while the feature is off.
+    if (screen.name === "privacy" && !env.featureConfidentialTransfers) return;
     set({ screen });
   },
 
@@ -235,6 +240,11 @@ export const useWallet = create<WalletState>((set, get) => ({
 
   setNetwork(id) {
     set({ networkId: id });
+    const network = NETWORKS[id];
+    // Switching network must take effect immediately, no extension restart —
+    // rebind the confidential providers' chain/converter/registrar now.
+    shieldProvider.setNetwork(network);
+    privacyProvider.setNetwork(network);
     get().setSetting("developerMode", get().developerMode); // persist networkId via settings blob
     void get().refresh();
   },
@@ -243,6 +253,13 @@ export const useWallet = create<WalletState>((set, get) => ({
     const { accounts, activeIndex, networkId } = get();
     const account = accounts[activeIndex];
     if (!account) return;
+    // The background keyring can auto-lock at any time independently of this
+    // popup — verify before touching anything sensitive, and drop the stale
+    // session immediately if it has.
+    if (!(await walletProvider.isUnlocked())) {
+      get().lock();
+      return;
+    }
     const network = NETWORKS[networkId];
     set({ loading: true });
     let rawNative: bigint,

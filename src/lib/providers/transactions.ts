@@ -1,6 +1,6 @@
 import { formatEther, JsonRpcProvider } from "ethers";
 
-import { withRetry } from "@/lib/rpc-retry";
+import { withRetry, withRpcFallback } from "@/lib/rpc-retry";
 
 import type { GasEstimate, NetworkInfo, TransactionProvider, TxRecord } from "./types";
 
@@ -25,10 +25,17 @@ export class RpcTransactionProvider implements TransactionProvider {
     tx: { to: string; value: bigint; data?: string },
     network: NetworkInfo,
   ): Promise<GasEstimate> {
-    const provider = new JsonRpcProvider(network.rpcUrl, network.chainId);
+    const urls = [network.rpcUrl, network.fallbackRpcUrl];
     const [gasLimit, feeData] = await Promise.all([
-      withRetry(() => provider.estimateGas({ from, to: tx.to, value: tx.value, data: tx.data })),
-      withRetry(() => provider.getFeeData()),
+      withRpcFallback(urls, (url) =>
+        new JsonRpcProvider(url, network.chainId).estimateGas({
+          from,
+          to: tx.to,
+          value: tx.value,
+          data: tx.data,
+        }),
+      ),
+      withRpcFallback(urls, (url) => new JsonRpcProvider(url, network.chainId).getFeeData()),
     ]);
     const maxFeePerGas = feeData.maxFeePerGas ?? feeData.gasPrice ?? 25_000_000_000n;
     return { gasLimit, maxFeePerGas, fee: gasLimit * maxFeePerGas };
@@ -37,8 +44,8 @@ export class RpcTransactionProvider implements TransactionProvider {
   async getHistory(address: string, network: NetworkInfo): Promise<TxRecord[]> {
     const base = API_BASE[network.chainId];
     try {
-      const res = await fetch(
-        `${base}?module=account&action=txlist&address=${address}&sort=desc&page=1&offset=25`,
+      const res = await withRetry(() =>
+        fetch(`${base}?module=account&action=txlist&address=${address}&sort=desc&page=1&offset=25`),
       );
       const json = await res.json();
       if (!Array.isArray(json.result)) return [];

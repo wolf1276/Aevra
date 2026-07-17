@@ -75,8 +75,13 @@ export class KeyringClientProvider implements WalletProvider {
     return sendRequest({ op: "verifyPassword", password });
   }
 
-  isUnlocked(): boolean {
-    return this.unlocked;
+  /** Always asks the background keyring — the SW can auto-lock at any time
+   *  independently of this client, so a cached flag would go stale. */
+  async isUnlocked(): Promise<boolean> {
+    const actual = await sendRequest({ op: "isUnlocked" });
+    this.unlocked = actual;
+    if (!actual) this.accountsCache = [];
+    return actual;
   }
 
   async addAccount(): Promise<Account> {

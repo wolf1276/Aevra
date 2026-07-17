@@ -8,8 +8,14 @@ export interface NetworkInfo {
   name: string;
   chainId: number;
   rpcUrl: string;
+  /** Secondary RPC tried when the primary is rate-limited or unreachable. */
+  fallbackRpcUrl?: string;
   explorerUrl: string;
   nativeSymbol: string;
+  /** eERC Converter contract for this network; "" if not deployed here. */
+  converterAddress: string;
+  /** eERC Registrar contract for this network; "" if not deployed here. */
+  registrarAddress: string;
 }
 
 export interface Account {
@@ -30,7 +36,8 @@ export interface WalletProvider {
   lock(): void;
   /** Check a password against the vault without changing unlock state. */
   verifyPassword(password: string): Promise<boolean>;
-  isUnlocked(): boolean;
+  /** Asks the background keyring directly — never trust a cached flag for this. */
+  isUnlocked(): Promise<boolean>;
   /** Derive the next account and persist its count. */
   addAccount(): Promise<Account>;
   /** Remove the most recently derived (highest-index) account. */
@@ -115,7 +122,17 @@ export interface ShieldProgress {
   percent: number;
 }
 
+export interface SendFeeEstimate {
+  /** total network fee across every tx the send will actually submit, in wei */
+  totalFee: bigint;
+  /** per-transaction breakdown, in submission order */
+  steps: { label: string; gas: bigint; maxFeePerGas: bigint }[];
+}
+
 export interface ShieldProvider {
+  /** Switch to a different network's converter/registrar/RPC; drops any
+   *  sessions bound to the previous chain. */
+  setNetwork(network: NetworkInfo): void;
   getShieldedBalances(address: string): Promise<ShieldedBalance[]>;
   shield(
     address: string,
@@ -153,6 +170,18 @@ export interface ShieldProvider {
   getShieldedActivity(address: string): Promise<TxRecord[]>;
   /** The user's eERC viewing key (decrypts their own confidential txs). */
   getViewingKey(address: string): Promise<string>;
+  /**
+   * Determine the exact set of on-chain transactions `send()` would submit
+   * (wrap / approve / shield-deposit / confidential-transfer, whichever
+   * apply) and estimate real gas for each — simulated against the real
+   * calldata, including the actual ZK proof for the transfer leg.
+   */
+  estimateSendFee(
+    address: string,
+    symbol: string,
+    amount: string,
+    to: string,
+  ): Promise<SendFeeEstimate>;
 }
 
 export interface RevealRecord {
@@ -170,6 +199,7 @@ export interface PrivacyStats {
 }
 
 export interface PrivacyProvider {
+  setNetwork(network: NetworkInfo): void;
   getStats(address: string): Promise<PrivacyStats>;
   getReveals(address: string): Promise<RevealRecord[]>;
   /** Reveal a shielded tx to a viewer; returns the reveal record. */

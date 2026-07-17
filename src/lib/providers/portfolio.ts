@@ -1,7 +1,7 @@
 import { Contract, JsonRpcProvider } from "ethers";
 
 import { TRACKED_TOKENS } from "@/config/networks";
-import { withRetry } from "@/lib/rpc-retry";
+import { withRetry, withRpcFallback } from "@/lib/rpc-retry";
 
 import type { NetworkInfo, PortfolioProvider, TokenBalance } from "./types";
 
@@ -28,20 +28,22 @@ async function fetchAvaxPrice(): Promise<{ "avalanche-2": { usd: number } }> {
 
 export class RpcPortfolioProvider implements PortfolioProvider {
   async getNativeBalance(address: string, network: NetworkInfo): Promise<bigint> {
-    const provider = new JsonRpcProvider(network.rpcUrl, network.chainId);
-    return withRetry(() => provider.getBalance(address));
+    return withRpcFallback([network.rpcUrl, network.fallbackRpcUrl], (url) =>
+      new JsonRpcProvider(url, network.chainId).getBalance(address),
+    );
   }
 
   async getTokenBalances(address: string, network: NetworkInfo): Promise<TokenBalance[]> {
-    const provider = new JsonRpcProvider(network.rpcUrl, network.chainId);
     const price = await this.getAvaxUsdPrice();
     const tokens = TRACKED_TOKENS[network.id];
     return Promise.all(
       tokens.map(async (t) => {
         let balance = 0n;
         try {
-          balance = await withRetry(() =>
-            new Contract(t.address, ERC20_ABI, provider).balanceOf(address),
+          balance = await withRpcFallback([network.rpcUrl, network.fallbackRpcUrl], (url) =>
+            new Contract(t.address, ERC20_ABI, new JsonRpcProvider(url, network.chainId)).balanceOf(
+              address,
+            ),
           );
         } catch {
           // RPC hiccup — show zero rather than crash the popup

@@ -6,12 +6,13 @@
 // therefore verifies the tx is decryptable with the user's key and returns
 // the transaction hash as the disclosure artifact. Nothing is fabricated.
 
+import { env } from "@/config/env";
 import { NETWORKS, TRACKED_TOKENS } from "@/config/networks";
 import { storageGet, storageSet } from "@/lib/storage";
 
 import { portfolioProvider } from "./portfolio";
 import { shieldProvider } from "./shield.eerc";
-import type { PrivacyProvider, PrivacyStats, RevealRecord } from "./types";
+import type { NetworkInfo, PrivacyProvider, PrivacyStats, RevealRecord } from "./types";
 
 const KEY = (addr: string) => `aevra.privacy.${addr.toLowerCase()}`;
 
@@ -21,11 +22,21 @@ async function loadReveals(address: string): Promise<RevealRecord[]> {
 }
 
 export class EERCPrivacyProvider implements PrivacyProvider {
+  private network: NetworkInfo = NETWORKS.fuji;
+
+  setNetwork(network: NetworkInfo): void {
+    this.network = network;
+  }
+
   async getStats(address: string): Promise<PrivacyStats> {
+    if (!env.featureConfidentialTransfers) {
+      return { score: 0, shieldedPct: 0, publicPct: 100, recommendation: null };
+    }
+    const network = this.network;
     const [shielded, native, tokens, price] = await Promise.all([
       shieldProvider.getShieldedBalances(address).catch(() => []),
-      portfolioProvider.getNativeBalance(address, NETWORKS.fuji).catch(() => 0n),
-      portfolioProvider.getTokenBalances(address, NETWORKS.fuji).catch(() => []),
+      portfolioProvider.getNativeBalance(address, network).catch(() => 0n),
+      portfolioProvider.getTokenBalances(address, network).catch(() => []),
       portfolioProvider.getAvaxUsdPrice(),
     ]);
     const shieldedUsd = shielded.reduce((s, b) => s + b.usdValue, 0);
@@ -33,7 +44,7 @@ export class EERCPrivacyProvider implements PrivacyProvider {
     const total = shieldedUsd + publicUsd;
     const shieldedPct = total > 0 ? Math.round((shieldedUsd / total) * 100) : 0;
     const shieldable = tokens.filter(
-      (t) => t.balance > 0n && TRACKED_TOKENS.fuji.some((s) => s.symbol === t.symbol),
+      (t) => t.balance > 0n && TRACKED_TOKENS[network.id].some((s) => s.symbol === t.symbol),
     );
     return {
       score: shieldedPct,
