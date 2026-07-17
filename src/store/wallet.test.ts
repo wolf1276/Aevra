@@ -10,12 +10,14 @@ vi.mock("@/lib/providers/portfolio", () => ({
 }));
 vi.mock("@/lib/providers/shield.eerc", () => ({
   shieldProvider: {
+    setNetwork: vi.fn(),
     getShieldedBalances: vi.fn().mockResolvedValue([]),
     getShieldedActivity: vi.fn().mockResolvedValue([]),
   },
 }));
 vi.mock("@/lib/providers/privacy.eerc", () => ({
   privacyProvider: {
+    setNetwork: vi.fn(),
     getStats: vi.fn().mockResolvedValue(null),
     getReveals: vi.fn().mockResolvedValue([]),
   },
